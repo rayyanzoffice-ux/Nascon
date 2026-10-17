@@ -48,7 +48,7 @@ jobs:
         working-directory: mobile
         run: |
           SDK=$(apkanalyzer manifest min-sdk build/app/outputs/flutter-apk/app-release.apk)
-          test \"$SDK\" -ge 29
+          test "$SDK" -ge 29
           apksigner verify --verbose build/app/outputs/flutter-apk/app-release.apk
           sha256sum build/app/outputs/flutter-apk/app-release.apk
       - name: Upload installable APK
