@@ -48,15 +48,27 @@ def event_apply(state,data):
     if not identifier(eid) or not identifier(mid) or not isinstance(payload,dict):bad("event_id","match_id","payload")
     fields={"match_init":["sport_id","home_team_id","away_team_id"],"match_start":[],"score":["team_id","event_type"],"discipline":["team_id","points"],"tiebreak_winner":["team_id"],"match_end":[],"compensation":["compensates","reason"]}
     if kind not in fields or any(k not in payload for k in fields[kind]):bad("type","payload")
+    # Validate the complete event schema before looking up any referenced ID.
+    if kind=="match_init":
+        if (any(not identifier(payload[k]) for k in fields[kind])
+                or payload["home_team_id"]==payload["away_team_id"]
+                or ("league_id" in payload and not identifier(payload["league_id"]))):bad("payload")
+    elif kind=="score":
+        if not identifier(payload["team_id"]) or not isinstance(payload["event_type"],str):bad("payload")
+    elif kind=="discipline":
+        if not identifier(payload["team_id"]) or not integer(payload["points"]):bad("payload")
+    elif kind=="tiebreak_winner":
+        if not identifier(payload["team_id"]):bad("payload")
+    elif kind=="compensation":
+        if not identifier(payload["compensates"]) or not isinstance(payload["reason"],str):bad("payload")
     old=state["events_by_id"].get(eid)
     if old is not None:
         if old["request"]==data:return 200,old["response"]
         fail(409,"DUPLICATE_EVENT_ID")
     m=state["matches"].get(mid)
     if kind=="match_init":
-        if m:fail(409,"MATCH_EXISTS")
-        if any(not identifier(payload[k]) for k in fields[kind]) or payload["home_team_id"]==payload["away_team_id"]:bad("payload")
         if payload["sport_id"] not in state["sports"]:fail(404,"SPORT_NOT_FOUND")
+        if m:fail(409,"MATCH_EXISTS")
         m=new_match(mid,payload["sport_id"],payload["home_team_id"],payload["away_team_id"],payload.get("league_id"))
         state["matches"][mid]=m
     elif m is None:fail(404,"MATCH_NOT_FOUND")
@@ -65,7 +77,6 @@ def event_apply(state,data):
     if kind in ("score","discipline","tiebreak_winner") and status!="in_progress":fail(409,"MATCH_NOT_IN_PROGRESS")
     if kind in ("score","discipline","tiebreak_winner"):
         if payload.get("team_id") not in (m["home"],m["away"]):bad("payload")
-    if kind=="discipline" and not integer(payload.get("points")):bad("payload")
     if kind=="score":
         sport=state["sports"][m["sport_id"]]
         if payload.get("event_type") not in sport["scoring_events"]:fail(400,"UNKNOWN_EVENT_TYPE")
@@ -104,3 +115,4 @@ def score(match_id:str):
         if m is None:fail(404,"MATCH_NOT_FOUND")
         return projection(m,s["sports"])
     return read(get)
+

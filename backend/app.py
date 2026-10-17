@@ -37,7 +37,7 @@ async def envelope(request, call_next):
 async def body(request, optional=False):
     raw = await request.body()
     if not raw and optional: return {}
-    try: data = json.loads(raw)
+    try: data = json.loads(raw, parse_constant=lambda _: bad("body"))
     except (ValueError, UnicodeDecodeError): bad("body")
     if not isinstance(data,dict): bad("body")
     return data
@@ -103,3 +103,4 @@ async def create_sport(req:Request):
         s["sports"][sid]=config
         return {"sport_id":sid,"status":"created","config":config}
     return mutate(change)
+

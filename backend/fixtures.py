@@ -114,6 +114,8 @@ def make_match(mid, bracket, rnd, idx, home=None, away=None, hs=None,az=None,bye
     return x
 
 def eliminate(teams,p,double=False):
+    if double and type(p.get("bracket_reset",False)) is not bool:bad("bracket_reset")
+    if not double and type(p.get("third_place_match",False)) is not bool:bad("third_place_match")
     size=1<<(len(teams)-1).bit_length()
     k=int(math.log2(size));order=seed_order(size)
     results=p.get("results",[])
@@ -162,6 +164,7 @@ def eliminate(teams,p,double=False):
                 else:m["winner_to"]={"match_id":"LR%dM%d"%(r+1,(i+1)//2),"slot":"home" if i%2 else "away"}
         if len(gf)==2:
             gf[0]["winner_to"]={"match_id":"GF2","slot":"home"}
+            gf[0]["loser_to"]={"match_id":"GF2","slot":"away"}
     if not double and p.get("third_place_match",False):
         tp=add("TP","third_place",k,1)
         if k>=2:
@@ -213,3 +216,4 @@ def generate(data):
 @router.post("/audit/v1/fixtures")
 async def fixtures(req:Request):
     return generate(await body(req))
+

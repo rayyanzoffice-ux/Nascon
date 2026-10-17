@@ -42,7 +42,12 @@ def permitted(state,principal_,scope,ident=None):
 
 def authorize(req,scope,ident=None):
     auth=principal(req)
-    allowed=read(lambda state:permitted(state,auth,scope,ident))
+    def check(state):
+        lookup={"league_fixtures":"rbac_leagues","club_roster":"clubs","club_products":"clubs","club_read":"clubs","player_edit":"rbac_players"}.get(scope)
+        if lookup and ident not in state[lookup]:
+            fail(404,{"rbac_leagues":"LEAGUE_NOT_FOUND","clubs":"CLUB_NOT_FOUND","rbac_players":"PLAYER_NOT_FOUND"}[lookup])
+        return permitted(state,auth,scope,ident)
+    allowed=read(check)
     if not allowed:fail(403,"FORBIDDEN")
     return {"authorized":True}
 
@@ -77,3 +82,4 @@ def club_read(req:Request,club_id:str):
 @router.get("/audit/v1/rbac/platform/config")
 def platform_config(req:Request):
     return authorize(req,"platform_config")
+

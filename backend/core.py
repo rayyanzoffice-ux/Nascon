@@ -53,7 +53,7 @@ def validate_order(values, fallback=ORDER):
         return list(fallback)
     if not isinstance(values, list) or any(not isinstance(x,str) or x not in ORDER for x in values) or len(set(values)) != len(values):
         bad("tie_break_order")
-    return list(values) if "draw_lots" in values else list(values) + ["draw_lots"]
+    return [x for x in values if x != "draw_lots"] + ["draw_lots"]
 
 def init_database():
     for attempt in range(30):
@@ -92,3 +92,4 @@ def boot(seed_fn):
     with psycopg.connect(DATABASE_URL) as c:
         row = c.execute("SELECT 1 FROM app_state WHERE id=1").fetchone()
     if row is None: set_seed(seed_fn(42, None))
+
