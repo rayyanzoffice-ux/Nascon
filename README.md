@@ -1,48 +1,68 @@
-# NaSCon ’26 — App Development Part I
+# NaSCon 2026 App Development, Phase I
 
 Public submission repository: https://github.com/rayyanzoffice-ux/Nascon
 
-## Quick start
+## Start the backend
 
-From repository root (Docker Engine 24+, Compose v2 required):
+On a clean Linux machine with Docker Engine 24+ and Compose v2, run this from the repository root:
 
 ```sh
 DAY1_SALT='the-exact-salt-on-your-team-slip' docker compose up -d --build
-curl http://localhost:8080/health
-curl -X POST http://localhost:8080/audit/v1/reset -H 'Content-Type: application/json' -d '{}'
+curl --fail http://localhost:8080/health
+curl --fail -X POST http://localhost:8080/audit/v1/reset -H 'Content-Type: application/json' -d '{}'
 ```
 
-On Windows PowerShell:
+The expected health response is `{"status":"ok"}`. The reset response is `reset_complete` with four sports, two tenants and the default jersey stock. The API listens on host port 8080; `/docs` shows interactive routes. Compose starts FastAPI, PostgreSQL 16, Redis 7, RabbitMQ, MinIO and a Redis Streams worker. PostgreSQL, Redis and MinIO have named volumes. No host migration or database setup is required.
+
+On Windows PowerShell, set the environment variable in the current terminal first:
 
 ```powershell
-$env:DAY1_SALT = "the-exact-salt-on-your-team-slip"
+$env:DAY1_SALT = 'the-exact-salt-on-your-team-slip'
 docker compose up -d --build
 Invoke-RestMethod http://localhost:8080/health
 ```
 
-**Never commit the real DAY1_SALT**. It is read directly from the environment during requests. HTTP API listens on port 8080. All graded backend routes are under `/audit/v1/`. `/docs` shows interactive API docs. To verify unit tests: `./run_tests.sh` with Python dependencies installed.
+The exact salt comes from the team slip. Do not put it in `.env`, command logs, screenshots or Git. `.env.example` documents the available variables without a real salt. `DAY1_SALT` is forwarded into the API container at startup. For the autograder, keep the committed `8080:8080` mapping.
 
-Services: FastAPI API, PostgreSQL 16, Redis 7, RabbitMQ, MinIO, Redis Streams worker. Domain state is persisted in PostgreSQL and writes are serialized with row locks to prevent overselling.
+If another local application already uses port 8080, leave that application running and test with a temporary Compose override outside the repository. For example, a local override containing `services: {api: {ports: !override ["127.0.0.1:18083:8080"]}}` can be passed with `docker compose -f docker-compose.yml -f /path/to/local-override.yml up -d --build`. Set the Android app's Server Settings to the chosen host port. Do not submit the local override as the default grader setup.
 
 ## Demo accounts
 
-| Role | Email | Password |
-|---|---|---|
-| Super Admin | admin@nascon.test | Nascon@26 |
-| League Organizer | organizer@nascon.test | Nascon@26 |
-| Club Manager | manager@nascon.test | Nascon@26 |
-| Player | player@nascon.test | Nascon@26 |
-| Viewer | viewer@nascon.test | Nascon@26 |
+All five accounts use password `Nascon@26` after startup and after `/audit/v1/reset`.
 
-The autograder RBAC matrix issues opaque signed JWTs. Demo UI authentication is an integration work item. No production credentials are committed.
+| Role | Email |
+|---|---|
+| Super Admin | admin@nascon.test |
+| League Organizer | organizer@nascon.test |
+| Club Manager | manager@nascon.test |
+| Player | player@nascon.test |
+| Viewer | viewer@nascon.test |
 
-## Phase I checklist
+The mobile app uses `/mobile/v1/login`; the `/audit/v1/*` routes follow the official autograder contract.
 
-- [x] Docker, health/reset, sport configuration
-- [x] Fixtures, event scoring, standings, checkout and JWT RBAC routes
-- [x] Roster transitions and offline-sync endpoints
-- [ ] End-to-end Docker autograder-equivalent tests on the team machine
-- [ ] Mobile Android app and signed/unsigned release APK at `mobile/release/app-release.apk`
-- [ ] Verified test coverage thresholds
+## Android app
 
-**Competition:** Repo stays public; register URL at the desk, push once in every required checkpoint window, and make final push no later than 15:05 PKT October 17.
+The submitted APK is `mobile/release/app-release.apk`. It targets Android 10 (API 29) or newer and is signed with the repository's **debug signing configuration** for hackathon installation. It is not a Play Store release. Never commit a private signing key.
+
+Install on an authorized device with `adb install -r mobile/release/app-release.apk`, then launch NaSCon. In Server Settings, use `http://10.0.2.2:8080` for an Android emulator or `http://<laptop-LAN-IP>:8080` for a physical phone on the same network. Use the chosen alternate port if a local Compose override is active. The app requires cleartext HTTP access for the local team server and stores the JWT using Android secure storage.
+
+For the desk check, sign in, open Fixtures, Standings, Club and Store, make a mock purchase and open its receipt, then use Organizer scoring and Manager roster actions. Confirm cached screens and pending actions remain visible in airplane mode, and sync after reconnecting. A physical phone must be able to reach the laptop over the LAN; Windows firewall settings may require allowing port 8080.
+
+To rebuild and replace the committed APK after mobile source changes:
+
+```sh
+cd mobile
+flutter pub get
+flutter analyze
+flutter test  # when mobile/test exists
+flutter build apk --release --no-shrink
+cp build/app/outputs/flutter-apk/app-release.apk release/app-release.apk
+```
+
+Commit `mobile/release/app-release.apk` explicitly after a local rebuild. The Android GitHub workflow also builds and uploads an APK artifact; successful pushes to `work/devops-release` commit that exact build to the release branch for grading. Other branches and pull requests only upload the artifact.
+
+## Checks and current limits
+
+Run `./run_tests.sh` for backend unit tests, or `python -m pytest -q tests` after installing `requirements.txt`. The CI workflows compile and test Python and analyze, test and build Flutter. The local HTTP override is for development only. An installable APK must still be checked on an Android 10+ device or emulator before claiming the mobile demo flow passes.
+
+**Competition deadline:** register this public repository with the venue desk, satisfy the required push checkpoints, and make the final push by 15:05 PKT on October 17, 2026.
