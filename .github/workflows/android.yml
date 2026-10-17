@@ -1,0 +1,50 @@
+name: Build NaSCon Android APK
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'mobile/lib/**'
+      - 'mobile/pubspec.yaml'
+      - '.github/workflows/android.yml'
+permissions:
+  contents: write
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Create Android host scaffold
+        working-directory: mobile
+        run: flutter create --org com.nascon26 --platforms android --project-name nascon_mobile .
+      - name: Enable local HTTP backend on Android
+        working-directory: mobile
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          f=Path('android/app/src/main/AndroidManifest.xml')
+          source=f.read_text()
+          if 'android.permission.INTERNET' not in source:
+              source=source.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application',1)
+          if 'usesCleartextTraffic' not in source:
+              source=source.replace('<application', '<application android:usesCleartextTraffic="true"',1)
+          f.write_text(source)
+          PY
+      - name: Download Flutter dependencies
+        working-directory: mobile
+        run: flutter pub get
+      - name: Compile release APK
+        working-directory: mobile
+        run: flutter build apk --release --no-shrink
+      - name: Commit installable APK and Android source
+        run: |
+          mkdir -p mobile/release
+          cp mobile/build/app/outputs/flutter-apk/app-release.apk mobile/release/app-release.apk
+          git config user.name "nascon-ci[bot]"
+          git config user.email "nascon-ci[bot]@users.noreply.github.com"
+          git add -f mobile/release/app-release.apk
+          git add mobile/android mobile/pubspec.lock
+          git diff --cached --quiet || (git commit -m "build: Android Phase I APK and platform files" && git push)
