@@ -43,11 +43,12 @@ def projection(match,sports):
     events=[{"sequence":i,"event_id":e["event_id"],"type":e["type"],"payload":e["payload"],"signature":e["signature"],"compensated":e["event_id"] in reversed_by,"compensated_by":reversed_by.get(e["event_id"])} for i,e in enumerate(match["events"],1)]
     return {"match_id":match["match_id"],"sport_id":match["sport_id"],"league_id":match["league_id"],"status":status,"outcome":outcome,"winner_team_id":winner if status=="completed" else None,"tiebreak_winner_team_id":tie,"home":a,"away":b,"version":len(events),"events":events}
 
-def event_apply(state,data):
+def validate_event_request(data):
+    if not isinstance(data,dict):bad("body")
     eid=data.get("event_id");mid=data.get("match_id");kind=data.get("type");payload=data.get("payload")
     if not identifier(eid) or not identifier(mid) or not isinstance(payload,dict):bad("event_id","match_id","payload")
     fields={"match_init":["sport_id","home_team_id","away_team_id"],"match_start":[],"score":["team_id","event_type"],"discipline":["team_id","points"],"tiebreak_winner":["team_id"],"match_end":[],"compensation":["compensates","reason"]}
-    if kind not in fields or any(k not in payload for k in fields[kind]):bad("type","payload")
+    if not isinstance(kind,str) or kind not in fields or any(k not in payload for k in fields[kind]):bad("type","payload")
     # Validate the complete event schema before looking up any referenced ID.
     if kind=="match_init":
         if (any(not identifier(payload[k]) for k in fields[kind])
@@ -61,6 +62,10 @@ def event_apply(state,data):
         if not identifier(payload["team_id"]):bad("payload")
     elif kind=="compensation":
         if not identifier(payload["compensates"]) or not isinstance(payload["reason"],str):bad("payload")
+    return eid,mid,kind,payload
+
+def event_apply(state,data):
+    eid,mid,kind,payload=validate_event_request(data)
     old=state["events_by_id"].get(eid)
     if old is not None:
         if old["request"]==data:return 200,old["response"]

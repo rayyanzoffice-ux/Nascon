@@ -19,11 +19,8 @@ def setup_apply(state,d):
     if not isinstance(lg,dict) or not isinstance(squads,list) or not isinstance(players,list):bad("league","squads","players")
     lid=lg.get("league_id");tenant=lg.get("tenant_id");sport=lg.get("sport_id");window=lg.get("transfer_window")
     if not identifier(lid) or not identifier(tenant) or not identifier(sport) or not isinstance(window,dict) or parsed_date(window.get("open")) is None or parsed_date(window.get("close")) is None or window["open"]>window["close"]:bad("league")
-    if sport not in state["sports"]:fail(404,"SPORT_NOT_FOUND")
-    if tenant not in state["tenants"]:bad("league")
-    conf=state["sports"][sport]["roster"]
-    max_size=lg.get("max_squad_size",conf["max_squad_size"]);required=lg.get("required_positions",conf["required_positions"])
-    if not positive_int(max_size) or not isinstance(required,dict) or any(not isinstance(k,str) or not integer(v) or v<0 for k,v in required.items()):bad("league")
+    if "max_squad_size" in lg and not positive_int(lg["max_squad_size"]):bad("league")
+    if "required_positions" in lg and (not isinstance(lg["required_positions"],dict) or any(not isinstance(k,str) or not integer(v) or v<0 for k,v in lg["required_positions"].items())):bad("league")
     sq={}
     for x in squads:
         if not isinstance(x,dict) or not identifier(x.get("squad_id")) or not identifier(x.get("club_id")) or not identifier(x.get("tenant_id")) or not isinstance(x.get("name"),str):bad("squads")
@@ -41,6 +38,10 @@ def setup_apply(state,d):
         counts[p["squad_id"]]+=1
     live=d.get("matches_in_progress",[])
     if not isinstance(live,list) or any(not isinstance(m,dict) or not identifier(m.get("match_id")) or m.get("home_squad_id") not in sq or m.get("away_squad_id") not in sq or m["home_squad_id"]==m["away_squad_id"] for m in live):bad("matches_in_progress")
+    if sport not in state["sports"]:fail(404,"SPORT_NOT_FOUND")
+    if tenant not in state["tenants"]:bad("league")
+    conf=state["sports"][sport]["roster"]
+    max_size=lg.get("max_squad_size",conf["max_squad_size"]);required=lg.get("required_positions",conf["required_positions"])
     if any(n>max_size for n in counts.values()):bad("players")
     for pid,v in list(state["players"].items()):
         if v["league_id"]==lid:state["players"].pop(pid)
@@ -68,7 +69,8 @@ def maybe_return(player,as_of):
     player.update({"squad_id":dest,"parent_squad_id":None,"registration_type":"loan_return","start_date":d,"loan_end_date":None,"role":"substitute"})
     audit(player,"loan_return",source,dest,utcnow(),"system","Automatic loan return",d,"active")
 
-def transfer_apply(state,d):
+def validate_transfer_request(d):
+    if not isinstance(d,dict):bad("body")
     needed=("request_id","league_id","player_id","type","from_squad_id","effective_date","reason","requested_by")
     if any(k not in d for k in needed) or any(not identifier(d.get(k)) for k in ("request_id","league_id","player_id","from_squad_id")) or d.get("type") not in ("transfer","loan","release") or parsed_date(d.get("effective_date")) is None or not isinstance(d.get("reason"),str) or not isinstance(d.get("requested_by"),str):bad(*needed)
     kind=d["type"];to=d.get("to_squad_id");end=d.get("loan_end_date")
@@ -76,6 +78,10 @@ def transfer_apply(state,d):
     if kind=="release" and to is not None:bad("to_squad_id")
     if kind=="loan" and (parsed_date(end) is None or end<=d["effective_date"]):bad("loan_end_date")
     if kind!="loan" and end is not None:bad("loan_end_date")
+    return kind,to,end
+
+def transfer_apply(state,d):
+    kind,to,end=validate_transfer_request(d)
     rid=d["request_id"];prior=state["transfers"].get(rid)
     if prior is not None:
         if prior["request"]==d:return 200,prior["response"]

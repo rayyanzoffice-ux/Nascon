@@ -3,19 +3,23 @@ from datetime import datetime
 from fastapi import APIRouter, Request
 from .core import APIError, bad, identifier, integer, mutate
 from .app import body
-from .scoring import event_apply
-from .roster import transfer_apply
+from .scoring import event_apply, validate_event_request
+from .roster import transfer_apply, validate_transfer_request
 
 router=APIRouter()
 
 def current_version(s,typ,payload):
     if typ=="score_event":
+        _,_,kind,_=validate_event_request(payload)
         match=s["matches"].get(payload.get("match_id"))
-        if match is None:raise APIError(404,"MATCH_NOT_FOUND")
+        if match is None:
+            if kind=="match_init":return 0
+            raise APIError(404,"MATCH_NOT_FOUND")
         return len(match["events"])
+    validate_transfer_request(payload)
     lg=payload.get("league_id");player=s["players"].get(payload.get("player_id"))
     if lg not in s["rosters"]:raise APIError(404,"LEAGUE_NOT_FOUND")
-    if player is None:raise APIError(404,"PLAYER_NOT_FOUND")
+    if player is None or player["league_id"]!=lg:raise APIError(404,"PLAYER_NOT_FOUND")
     return len(player["history"])
 
 def sync_apply(state,envelope):

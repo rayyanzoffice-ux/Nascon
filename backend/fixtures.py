@@ -90,15 +90,22 @@ def swiss(teams,p):
             def solve(rest):
                 if not rest:return (0,())
                 first=rest[0]; opt=None
-                for j in range(1,len(rest)):
+                # With scores in descending order, adjacent unconstrained pairs
+                # give a lower bound on the cost of every valid matching.
+                lower_bound=sum(abs(scores[rest[i]]-scores[rest[i+1]]) for i in range(0,len(rest),2))
+                candidates=sorted(range(1,len(rest)),key=lambda j:(abs(scores[first]-scores[rest[j]]),j))
+                for j in candidates:
                     other=rest[j]
                     if other in seen[first]:continue
                     remaining=rest[1:j]+rest[j+1:]
+                    bound=abs(scores[first]-scores[other])+sum(abs(scores[remaining[i]]-scores[remaining[i+1]]) for i in range(0,len(remaining),2))
+                    if opt is not None and bound>=opt[0]:continue
                     result=solve(remaining)
                     if result is None:continue
                     value=abs(scores[first]-scores[other])+result[0]
                     proposal=(value,((first,other),)+result[1])
                     if opt is None or proposal[0]<opt[0]:opt=proposal
+                    if opt[0]==lower_bound:break
                 return opt
             result=solve(tuple(pool))
             if result is not None:best=result[1];bye=candidate;break
@@ -170,7 +177,7 @@ def eliminate(teams,p,double=False):
         if k>=2:
             for i,sem in enumerate(wb[-2]["matches"]):
                 sem["loser_to"]={"match_id":"TP","slot":"home" if i==0 else "away"}
-        wb.append({"round":k,"matches":[tp]})
+        wb[-1]["matches"].append(tp)
     def route(m,field):
         target=m.get(field)
         if target is None:return False
@@ -199,7 +206,7 @@ def eliminate(teams,p,double=False):
     if double and len(gf)==2:
         g1=gf[0];g2=gf[1]
         if g1["winner"] is not None:g2["required"]=g1["winner"]==g1["away"]
-        g2["home"],g2["away"]=g1["home"],g1["away"]
+        else:g2["home"],g2["away"]=g1["home"],g1["away"]
     if double:
         return {"format":"double_elim","bracket_size":size,"bracket_reset":bool(p.get("bracket_reset",False)),"winners":wb,"losers":lb,"grand_final":gf}
     return {"format":"single_elim","bracket_size":size,"rounds":wb}
