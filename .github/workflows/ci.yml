@@ -15,7 +15,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python -m compileall -q backend
-      - run: python -m pytest -q tests
+      - run: ./run_tests.sh
         env:
           DAY1_SALT: demo-salt
 
