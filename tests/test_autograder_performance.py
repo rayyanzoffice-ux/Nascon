@@ -23,7 +23,6 @@ def _pair_swiss_round_two(output):
         output.put((time.monotonic() - start, None, repr(exc)))
 
 
-@pytest.mark.xfail(strict=True, reason="current main Swiss exact backtracking exceeds the 5-second per-request limit at 32 teams")
 def test_swiss_32_team_round_two_within_five_seconds():
     queue = multiprocessing.Queue()
     worker = multiprocessing.Process(target=_pair_swiss_round_two, args=(queue,))

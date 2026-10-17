@@ -4,8 +4,6 @@ import hashlib
 import hmac
 import json
 
-import pytest
-
 from backend.offline import sync_apply
 from backend.roster import setup_apply
 from backend.scoring import new_match
@@ -93,7 +91,6 @@ def test_roster_transfer_conflict_is_per_action_not_envelope_failure():
     assert response["summary"] == {"applied": 1, "rejected": 1, "duplicate": 0}
 
 
-@pytest.mark.xfail(strict=True, reason="backend/offline.py does not record rule-rejected action IDs; 5.14 requires duplicate on replay")
 def test_rejected_action_is_duplicate_on_identical_replay():
     state = baseline()
     state["matches"]["m"] = new_match("m", "football", "a", "b")  # upcoming

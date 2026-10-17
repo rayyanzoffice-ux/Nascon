@@ -17,10 +17,10 @@
 
 ## Coverage evidence
 
-Measured on 2026-10-17 with Python 3.11 in the project Docker image using `pytest-cov` and all unit/contract tests under `tests/`. The measured statement counts were: fixtures 200/201, scoring 99/99, standings 95/97, store 70/71, roster 115/116, and RBAC 62/63. `COVERAGE.json` records these values rounded to one decimal place.
+Measured on 2026-10-17 with Python 3.11 in the project Docker image using `pytest-cov` and all unit/contract tests under `tests/`. The measured statement counts were: fixtures 217/224, scoring 110/111, standings 95/97, store 70/71, roster 130/131, and RBAC 67/69. `COVERAGE.json` records these values rounded to one decimal place.
 
 Live integration tests are enabled by setting `NASCON_BASE_URL` and `QA_TEST_SALT`. They are excluded from the ordinary unit coverage run when no isolated API is supplied. The local override binds the QA API to `127.0.0.1:18081` and does not alter the graded port in `docker-compose.yml`.
 
-## Known regression vectors
+## Resolved regression vectors
 
-Strict expected-failure tests document confirmed defects in offline rejected-action replay, cross-tenant roster squad resolution, and the 32-team Swiss request-time limit. See `qa/FAILURES.md` for exact reproductions and owners.
+Required passing tests preserve coverage for offline rejected-action replay, cross-tenant roster squad resolution, and the 32-team Swiss request-time limit. See `qa/FAILURES.md` for the original reproductions and resolution status.

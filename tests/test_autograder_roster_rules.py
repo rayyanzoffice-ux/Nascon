@@ -76,7 +76,6 @@ def test_loan_blocks_subsequent_move_and_last_window_day_can_defer():
     assert len(state["players"]["p1"]["history"]) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="backend/roster.py resolves squads only within the current league; 5.11 requires global existence then CROSS_TENANT_TRANSFER")
 def test_foreign_existing_squad_is_cross_tenant_conflict():
     state = baseline()
     configured = scenario()
