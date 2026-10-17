@@ -190,12 +190,27 @@ def eliminate(teams,p,double=False):
     for res in results:
         if not isinstance(res,dict) or res.get("match_id") not in allm or not isinstance(res.get("winner"),str) or res["match_id"] in given:bad("results")
         given[res["match_id"]]=res["winner"]
+    feeders={mid:{} for mid in allm}
+    for source in allm.values():
+        for field in ("winner_to","loser_to"):
+            target=source[field]
+            if target is not None:
+                feeders[target["match_id"]][target["slot"]]=source["match_id"]
+    settled=set()
     for _ in range(len(allm)*3):
         changed=False
         for m in allm.values():
             if m["bye"] and m["winner"] is None and m["home"] is not None:m["winner"]=m["home"];changed=True
             if m["match_id"] in given and m["winner"] is None and m["home"] and m["away"] and given[m["match_id"]] in (m["home"],m["away"]):
                 m["winner"]=given[m["match_id"]];m["loser"]=m["away"] if m["winner"]==m["home"] else m["home"];changed=True
+            if m["winner"] is not None:settled.add(m["match_id"])
+            if m["bracket"]=="losers" and m["match_id"] not in settled and len(feeders[m["match_id"]])==2 and all(source in settled for source in feeders[m["match_id"]].values()):
+                present=[team for team in (m["home"],m["away"]) if team is not None]
+                if len(present)<=1:
+                    m["bye"]=True
+                    if present:m["winner"]=present[0]
+                    settled.add(m["match_id"])
+                    changed=True
             if m["winner"] is not None:
                 changed=route(m,"winner_to") or changed
                 changed=route(m,"loser_to") or changed
@@ -223,4 +238,3 @@ def generate(data):
 @router.post("/audit/v1/fixtures")
 async def fixtures(req:Request):
     return generate(await body(req))
-

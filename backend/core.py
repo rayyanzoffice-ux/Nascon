@@ -13,7 +13,7 @@ ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 SPORT_ID = re.compile(r"^[a-z0-9_-]{2,40}$")
 EVENT_ID = re.compile(r"^[a-z0-9_]{1,40}$")
 ORDER = ["h2h_points", "h2h_diff", "overall_diff", "scored", "fair_play", "draw_lots"]
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://nascon:nascon_local@localhost:5432/nascon")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://nascon@localhost:5432/nascon")
 
 class APIError(Exception):
     def __init__(self, status, code, details=None, message=None):
@@ -92,4 +92,3 @@ def boot(seed_fn):
     with psycopg.connect(DATABASE_URL) as c:
         row = c.execute("SELECT 1 FROM app_state WHERE id=1").fetchone()
     if row is None: set_seed(seed_fn(42, None))
-

@@ -41,7 +41,7 @@ def projection(match,sports):
     if status=="completed":
         outcome=("home_win" if winner==teams[0] else "away_win" if winner==teams[1] else "draw" if sport["draw_allowed"] else "undecided")
     events=[{"sequence":i,"event_id":e["event_id"],"type":e["type"],"payload":e["payload"],"signature":e["signature"],"compensated":e["event_id"] in reversed_by,"compensated_by":reversed_by.get(e["event_id"])} for i,e in enumerate(match["events"],1)]
-    return {"match_id":match["match_id"],"sport_id":match["sport_id"],"league_id":match["league_id"],"status":status,"outcome":outcome,"winner_team_id":winner if status=="completed" else None,"tiebreak_winner_team_id":tie,"home":a,"away":b,"version":len(events),"events":events}
+    return {"match_id":match["match_id"],"sport_id":match["sport_id"],"league_id":match["league_id"],"status":status,"outcome":outcome,"winner_team_id":winner,"tiebreak_winner_team_id":tie,"home":a,"away":b,"version":len(events),"events":events}
 
 def validate_event_request(data):
     if not isinstance(data,dict):bad("body")
@@ -120,4 +120,3 @@ def score(match_id:str):
         if m is None:fail(404,"MATCH_NOT_FOUND")
         return projection(m,s["sports"])
     return read(get)
-

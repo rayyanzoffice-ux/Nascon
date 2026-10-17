@@ -91,9 +91,10 @@ def transfer_apply(state,d):
     p=state["players"].get(d["player_id"])
     if p is None or p["league_id"]!=lid:fail(404,"PLAYER_NOT_FOUND")
     sq=r["squads"];source=d["from_squad_id"]
-    if source not in sq or (to is not None and to not in sq):fail(404,"SQUAD_NOT_FOUND")
+    all_squads={sid:item for roster in state["rosters"].values() for sid,item in roster["squads"].items()}
+    if source not in all_squads or (to is not None and to not in all_squads):fail(404,"SQUAD_NOT_FOUND")
     tenant=r["league"]["tenant_id"]
-    if sq[source]["tenant_id"]!=tenant or (to is not None and sq[to]["tenant_id"]!=tenant):fail(409,"CROSS_TENANT_TRANSFER")
+    if all_squads[source]["tenant_id"]!=tenant or (to is not None and all_squads[to]["tenant_id"]!=tenant):fail(409,"CROSS_TENANT_TRANSFER")
     maybe_return(p,d["effective_date"])
     if p["squad_id"]!=source:fail(409,"NOT_IN_SQUAD")
     window=r["league"]["transfer_window"]
@@ -140,4 +141,3 @@ def history(player_id:str,as_of:str=None):
                 parent=entry["from_squad_id"] if entry["action"]=="loan" else None
         return {"player_id":player_id,"as_of":when,"league_id":p["league_id"],"current_squad_id":current,"parent_squad_id":parent,"history":p["history"]}
     return mutate(lookup)
-
