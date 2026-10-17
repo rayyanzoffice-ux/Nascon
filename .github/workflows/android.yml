@@ -47,9 +47,12 @@ jobs:
       - name: Verify Android package
         working-directory: mobile
         run: |
-          SDK=$(apkanalyzer manifest min-sdk build/app/outputs/flutter-apk/app-release.apk)
-          test "$SDK" -ge 29
-          apksigner verify --verbose build/app/outputs/flutter-apk/app-release.apk
+          BUILD_TOOLS="$ANDROID_HOME/build-tools"
+          AAPT=$(find "$BUILD_TOOLS" -name aapt -type f | sort | tail -n 1)
+          APKSIGNER=$(find "$BUILD_TOOLS" -name apksigner -type f | sort | tail -n 1)
+          test -n "$AAPT" && test -n "$APKSIGNER"
+          "$AAPT" dump badging build/app/outputs/flutter-apk/app-release.apk | grep -F "sdkVersion:'29'"
+          "$APKSIGNER" verify --verbose build/app/outputs/flutter-apk/app-release.apk
           sha256sum build/app/outputs/flutter-apk/app-release.apk
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
