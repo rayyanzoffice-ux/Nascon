@@ -1,7 +1,8 @@
 name: Backend checks
 on:
   push:
-    branches: [main]
+    branches: [main, 'work/devops-release']
+  pull_request:
   workflow_dispatch:
 jobs:
   python:

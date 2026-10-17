@@ -4,7 +4,16 @@ on:
   push:
     paths:
       - 'mobile/lib/**'
+      - 'mobile/android/**'
       - 'mobile/pubspec.yaml'
+      - 'mobile/pubspec.lock'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'mobile/lib/**'
+      - 'mobile/android/**'
+      - 'mobile/pubspec.yaml'
+      - 'mobile/pubspec.lock'
       - '.github/workflows/android.yml'
 permissions:
   contents: write
@@ -15,36 +24,42 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.47.7'
           channel: stable
           cache: true
-      - name: Create Android host scaffold
-        working-directory: mobile
-        run: flutter create --org com.nascon26 --platforms android --project-name nascon_mobile .
-      - name: Enable local HTTP backend on Android
-        working-directory: mobile
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          f=Path('android/app/src/main/AndroidManifest.xml')
-          source=f.read_text()
-          if 'android.permission.INTERNET' not in source:
-              source=source.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application',1)
-          if 'usesCleartextTraffic' not in source:
-              source=source.replace('<application', '<application android:usesCleartextTraffic="true"',1)
-          f.write_text(source)
-          PY
       - name: Download Flutter dependencies
         working-directory: mobile
         run: flutter pub get
+      - name: Analyze Dart source
+        working-directory: mobile
+        run: flutter analyze
+      - name: Run Flutter tests
+        working-directory: mobile
+        run: |
+          if [ -d test ]; then
+            flutter test
+          else
+            echo 'No mobile/test directory yet; release build remains the mobile compile gate.'
+          fi
       - name: Compile release APK
         working-directory: mobile
         run: flutter build apk --release --no-shrink
-      - name: Commit installable APK and Android source
+      - name: Verify Android package\n        working-directory: mobile\n        run: |\n          SDK=$(apkanalyzer manifest min-sdk build/app/outputs/flutter-apk/app-release.apk)\n          test \"$SDK\" -ge 29\n          apksigner verify --verbose build/app/outputs/flutter-apk/app-release.apk\n          sha256sum build/app/outputs/flutter-apk/app-release.apk\n      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nascon-android-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Commit graded APK on release branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/work/devops-release'
         run: |
           mkdir -p mobile/release
           cp mobile/build/app/outputs/flutter-apk/app-release.apk mobile/release/app-release.apk
-          git config user.name "nascon-ci[bot]"
-          git config user.email "nascon-ci[bot]@users.noreply.github.com"
+          git config user.name 'nascon-ci[bot]'
+          git config user.email 'nascon-ci[bot]@users.noreply.github.com'
           git add -f mobile/release/app-release.apk
-          git add mobile/android mobile/pubspec.lock
-          git diff --cached --quiet || (git commit -m "build: Android Phase I APK and platform files" && git push)
+          if ! git diff --cached --quiet; then
+            git commit -m 'build: package Android 10 release APK'
+            git push origin HEAD:work/devops-release
+          fi
