@@ -16,3 +16,5 @@ app.include_router(store_router)
 app.include_router(rbac_router)
 app.include_router(roster_router)
 app.include_router(offline_router)
+from .mobile_api import router as mobile_router
+app.include_router(mobile_router)
