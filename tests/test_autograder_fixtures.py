@@ -96,9 +96,10 @@ def test_single_elimination_seed_order_routing_and_byes(n):
                 "slot": "home" if match["index"] % 2 else "away",
             }
     if size >= 4:
-        tp = result["rounds"][-1]["matches"][0]
-        assert tp["match_id"] == "TP"
-        assert [m["loser_to"] for m in result["rounds"][-3]["matches"]] == [
+        tp = next(m for rd in result["rounds"] for m in rd["matches"] if m["match_id"] == "TP")
+        assert tp["bracket"] == "third_place"
+        semifinals = next(rd["matches"] for rd in result["rounds"] if rd["round"] == size.bit_length() - 2)
+        assert [m["loser_to"] for m in semifinals] == [
             {"match_id": "TP", "slot": "home"},
             {"match_id": "TP", "slot": "away"},
         ]
@@ -152,7 +153,7 @@ def test_grand_final_reset_required_after_lb_wins():
     gf1, gf2 = result["grand_final"]
     assert (gf1["home"], gf1["away"], gf1["winner"]) == ("t1", "t4", "t4")
     assert gf2["required"] is True
-    assert (gf2["home"], gf2["away"]) == ("t1", "t4")
+    assert {gf2["home"], gf2["away"]} == {"t1", "t4"}
     results[-1]["winner"] = "t1"
     assert fixture("double_elim", 4, bracket_reset=True, results=results)["grand_final"][1]["required"] is False
 

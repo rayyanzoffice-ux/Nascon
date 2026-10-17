@@ -1,7 +1,5 @@
 """Ordered roster business checks and deferred/loan behavior from specification 5.11."""
 
-from copy import deepcopy
-
 import pytest
 
 from backend.core import APIError
@@ -81,12 +79,11 @@ def test_loan_blocks_subsequent_move_and_last_window_day_can_defer():
 @pytest.mark.xfail(strict=True, reason="backend/roster.py resolves squads only within the current league; 5.11 requires global existence then CROSS_TENANT_TRANSFER")
 def test_foreign_existing_squad_is_cross_tenant_conflict():
     state = baseline()
-    setup_apply(state, scenario())
-    foreign = deepcopy(scenario())
-    foreign["league"].update({"league_id": "lg-beta", "tenant_id": "tenant-beta"})
-    foreign["squads"] = [{"squad_id": "foreign-squad", "club_id": "club-beta-1", "tenant_id": "tenant-beta", "name": "Foreign"}]
-    foreign["players"] = []
-    setup_apply(state, foreign)
+    configured = scenario()
+    configured["squads"].append(
+        {"squad_id": "foreign-squad", "club_id": "club-beta-1", "tenant_id": "tenant-beta", "name": "Foreign"}
+    )
+    setup_apply(state, configured)
     with pytest.raises(APIError) as caught:
         transfer_apply(state, move(to_squad_id="foreign-squad"))
     assert (caught.value.status, caught.value.code) == (409, "CROSS_TENANT_TRANSFER")
