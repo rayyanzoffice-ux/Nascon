@@ -95,6 +95,7 @@ def transfer_apply(state,d):
     if source not in all_squads or (to is not None and to not in all_squads):fail(404,"SQUAD_NOT_FOUND")
     tenant=r["league"]["tenant_id"]
     if all_squads[source]["tenant_id"]!=tenant or (to is not None and all_squads[to]["tenant_id"]!=tenant):fail(409,"CROSS_TENANT_TRANSFER")
+    if source not in sq or (to is not None and to not in sq):fail(404,"SQUAD_NOT_FOUND")
     maybe_return(p,d["effective_date"])
     if p["squad_id"]!=source:fail(409,"NOT_IN_SQUAD")
     window=r["league"]["transfer_window"]
