@@ -44,7 +44,14 @@ jobs:
       - name: Compile release APK
         working-directory: mobile
         run: flutter build apk --release --no-shrink
-      - name: Verify Android package\n        working-directory: mobile\n        run: |\n          SDK=$(apkanalyzer manifest min-sdk build/app/outputs/flutter-apk/app-release.apk)\n          test \"$SDK\" -ge 29\n          apksigner verify --verbose build/app/outputs/flutter-apk/app-release.apk\n          sha256sum build/app/outputs/flutter-apk/app-release.apk\n      - name: Upload installable APK
+      - name: Verify Android package
+        working-directory: mobile
+        run: |
+          SDK=$(apkanalyzer manifest min-sdk build/app/outputs/flutter-apk/app-release.apk)
+          test \"$SDK\" -ge 29
+          apksigner verify --verbose build/app/outputs/flutter-apk/app-release.apk
+          sha256sum build/app/outputs/flutter-apk/app-release.apk
+      - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
           name: nascon-android-apk
