@@ -15,12 +15,14 @@ async def create_league(req:Request):
     if not isinstance(q,dict) or not integer(q.get("spots")) or not 1<=q["spots"]<=len(teams):bad("qualification")
     if not isinstance(pts,dict) or any(not integer(pts.get(k)) for k in ("win","draw","loss")):bad("points")
     if "lots_seed" in d and not integer(d["lots_seed"]):bad("lots_seed")
+    requested_order=validate_order(d.get("tie_break_order")) if "tie_break_order" in d else None
     def change(s):
         if sport not in s["sports"]:fail(404,"SPORT_NOT_FOUND")
         if lid in s["leagues"]:fail(409,"LEAGUE_EXISTS")
         if any(f["match_id"] in s["matches"] for f in fx):fail(409,"MATCH_EXISTS")
-        order=validate_order(d.get("tie_break_order"),s["sports"][sport]["tie_break_order"])
+        order=requested_order if requested_order is not None else list(s["sports"][sport]["tie_break_order"])
         s["leagues"][lid]={"league_id":lid,"sport_id":sport,"teams":teams,"fixtures":fx,"points":pts,"qualification":q,"tie_break_order":order,"lots_seed":d.get("lots_seed",s["seed"])}
         for f in fx:s["matches"][f["match_id"]]=new_match(f["match_id"],sport,f["home"],f["away"],lid)
         return {"league_id":lid,"status":"created","team_count":len(teams),"fixture_count":len(fx)}
     return mutate(change)
+

@@ -1,11 +1,12 @@
 import os
+import secrets
 from datetime import datetime, timezone, timedelta
 import jwt
 from fastapi import APIRouter, Request
 from .core import read, fail
 
 router=APIRouter()
-SECRET=os.getenv("JWT_SECRET","nascon-local-jwt-change-me")
+SECRET=os.getenv("JWT_SECRET") or secrets.token_urlsafe(32)
 ROLES=("super_admin","league_organizer","club_manager","player","viewer")
 CTX={"tenant_id":"tenant-alpha","foreign_tenant_id":"tenant-beta",
     "own_league_id":"league-alpha-1","other_league_id":"league-alpha-2","foreign_league_id":"league-beta-1",
@@ -42,7 +43,12 @@ def permitted(state,principal_,scope,ident=None):
 
 def authorize(req,scope,ident=None):
     auth=principal(req)
-    allowed=read(lambda state:permitted(state,auth,scope,ident))
+    def check(state):
+        lookup={"league_fixtures":"rbac_leagues","club_roster":"clubs","club_products":"clubs","club_read":"clubs","player_edit":"rbac_players"}.get(scope)
+        if lookup and ident not in state[lookup]:
+            fail(404,{"rbac_leagues":"LEAGUE_NOT_FOUND","clubs":"SQUAD_NOT_FOUND","rbac_players":"PLAYER_NOT_FOUND"}[lookup])
+        return permitted(state,auth,scope,ident)
+    allowed=read(check)
     if not allowed:fail(403,"FORBIDDEN")
     return {"authorized":True}
 

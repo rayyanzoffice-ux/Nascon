@@ -13,7 +13,7 @@ ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 SPORT_ID = re.compile(r"^[a-z0-9_-]{2,40}$")
 EVENT_ID = re.compile(r"^[a-z0-9_]{1,40}$")
 ORDER = ["h2h_points", "h2h_diff", "overall_diff", "scored", "fair_play", "draw_lots"]
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://nascon:nascon_local@localhost:5432/nascon")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://nascon@localhost:5432/nascon")
 
 class APIError(Exception):
     def __init__(self, status, code, details=None, message=None):
@@ -53,7 +53,7 @@ def validate_order(values, fallback=ORDER):
         return list(fallback)
     if not isinstance(values, list) or any(not isinstance(x,str) or x not in ORDER for x in values) or len(set(values)) != len(values):
         bad("tie_break_order")
-    return list(values) if "draw_lots" in values else list(values) + ["draw_lots"]
+    return [x for x in values if x != "draw_lots"] + ["draw_lots"]
 
 def init_database():
     for attempt in range(30):

@@ -90,15 +90,22 @@ def swiss(teams,p):
             def solve(rest):
                 if not rest:return (0,())
                 first=rest[0]; opt=None
-                for j in range(1,len(rest)):
+                # With scores in descending order, adjacent unconstrained pairs
+                # give a lower bound on the cost of every valid matching.
+                lower_bound=sum(abs(scores[rest[i]]-scores[rest[i+1]]) for i in range(0,len(rest),2))
+                candidates=sorted(range(1,len(rest)),key=lambda j:(abs(scores[first]-scores[rest[j]]),j))
+                for j in candidates:
                     other=rest[j]
                     if other in seen[first]:continue
                     remaining=rest[1:j]+rest[j+1:]
+                    bound=abs(scores[first]-scores[other])+sum(abs(scores[remaining[i]]-scores[remaining[i+1]]) for i in range(0,len(remaining),2))
+                    if opt is not None and bound>=opt[0]:continue
                     result=solve(remaining)
                     if result is None:continue
                     value=abs(scores[first]-scores[other])+result[0]
                     proposal=(value,((first,other),)+result[1])
                     if opt is None or proposal[0]<opt[0]:opt=proposal
+                    if opt[0]==lower_bound:break
                 return opt
             result=solve(tuple(pool))
             if result is not None:best=result[1];bye=candidate;break
@@ -114,6 +121,8 @@ def make_match(mid, bracket, rnd, idx, home=None, away=None, hs=None,az=None,bye
     return x
 
 def eliminate(teams,p,double=False):
+    if double and type(p.get("bracket_reset",False)) is not bool:bad("bracket_reset")
+    if not double and type(p.get("third_place_match",False)) is not bool:bad("third_place_match")
     size=1<<(len(teams)-1).bit_length()
     k=int(math.log2(size));order=seed_order(size)
     results=p.get("results",[])
@@ -162,12 +171,13 @@ def eliminate(teams,p,double=False):
                 else:m["winner_to"]={"match_id":"LR%dM%d"%(r+1,(i+1)//2),"slot":"home" if i%2 else "away"}
         if len(gf)==2:
             gf[0]["winner_to"]={"match_id":"GF2","slot":"home"}
+            gf[0]["loser_to"]={"match_id":"GF2","slot":"away"}
     if not double and p.get("third_place_match",False):
         tp=add("TP","third_place",k,1)
         if k>=2:
             for i,sem in enumerate(wb[-2]["matches"]):
                 sem["loser_to"]={"match_id":"TP","slot":"home" if i==0 else "away"}
-        wb.append({"round":k,"matches":[tp]})
+        wb[-1]["matches"].append(tp)
     def route(m,field):
         target=m.get(field)
         if target is None:return False
@@ -180,12 +190,27 @@ def eliminate(teams,p,double=False):
     for res in results:
         if not isinstance(res,dict) or res.get("match_id") not in allm or not isinstance(res.get("winner"),str) or res["match_id"] in given:bad("results")
         given[res["match_id"]]=res["winner"]
+    feeders={mid:{} for mid in allm}
+    for source in allm.values():
+        for field in ("winner_to","loser_to"):
+            target=source[field]
+            if target is not None:
+                feeders[target["match_id"]][target["slot"]]=source["match_id"]
+    settled=set()
     for _ in range(len(allm)*3):
         changed=False
         for m in allm.values():
             if m["bye"] and m["winner"] is None and m["home"] is not None:m["winner"]=m["home"];changed=True
             if m["match_id"] in given and m["winner"] is None and m["home"] and m["away"] and given[m["match_id"]] in (m["home"],m["away"]):
                 m["winner"]=given[m["match_id"]];m["loser"]=m["away"] if m["winner"]==m["home"] else m["home"];changed=True
+            if m["winner"] is not None:settled.add(m["match_id"])
+            if m["bracket"]=="losers" and m["match_id"] not in settled and len(feeders[m["match_id"]])==2 and all(source in settled for source in feeders[m["match_id"]].values()):
+                present=[team for team in (m["home"],m["away"]) if team is not None]
+                if len(present)<=1:
+                    m["bye"]=True
+                    if present:m["winner"]=present[0]
+                    settled.add(m["match_id"])
+                    changed=True
             if m["winner"] is not None:
                 changed=route(m,"winner_to") or changed
                 changed=route(m,"loser_to") or changed
@@ -196,7 +221,7 @@ def eliminate(teams,p,double=False):
     if double and len(gf)==2:
         g1=gf[0];g2=gf[1]
         if g1["winner"] is not None:g2["required"]=g1["winner"]==g1["away"]
-        g2["home"],g2["away"]=g1["home"],g1["away"]
+        else:g2["home"],g2["away"]=g1["home"],g1["away"]
     if double:
         return {"format":"double_elim","bracket_size":size,"bracket_reset":bool(p.get("bracket_reset",False)),"winners":wb,"losers":lb,"grand_final":gf}
     return {"format":"single_elim","bracket_size":size,"rounds":wb}

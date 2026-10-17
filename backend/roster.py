@@ -19,30 +19,36 @@ def setup_apply(state,d):
     if not isinstance(lg,dict) or not isinstance(squads,list) or not isinstance(players,list):bad("league","squads","players")
     lid=lg.get("league_id");tenant=lg.get("tenant_id");sport=lg.get("sport_id");window=lg.get("transfer_window")
     if not identifier(lid) or not identifier(tenant) or not identifier(sport) or not isinstance(window,dict) or parsed_date(window.get("open")) is None or parsed_date(window.get("close")) is None or window["open"]>window["close"]:bad("league")
-    if sport not in state["sports"]:fail(404,"SPORT_NOT_FOUND")
-    if tenant not in state["tenants"]:bad("league")
-    conf=state["sports"][sport]["roster"]
-    max_size=lg.get("max_squad_size",conf["max_squad_size"]);required=lg.get("required_positions",conf["required_positions"])
-    if not positive_int(max_size) or not isinstance(required,dict) or any(not isinstance(k,str) or not integer(v) or v<0 for k,v in required.items()):bad("league")
+    if "max_squad_size" in lg and not positive_int(lg["max_squad_size"]):bad("league")
+    if "required_positions" in lg and (not isinstance(lg["required_positions"],dict) or any(not isinstance(k,str) or not integer(v) or v<0 for k,v in lg["required_positions"].items())):bad("league")
     sq={}
     for x in squads:
         if not isinstance(x,dict) or not identifier(x.get("squad_id")) or not identifier(x.get("club_id")) or not identifier(x.get("tenant_id")) or not isinstance(x.get("name"),str):bad("squads")
         if x["squad_id"] in sq:bad("squads")
         sq[x["squad_id"]]=x
-    if any(x["tenant_id"]!=tenant for x in sq.values()):bad("squads")
+    # Foreign-tenant squads are permitted in setup so transfer can return the
+    # contract's CROSS_TENANT_TRANSFER error at the prescribed rule step.
     counts={sid:0 for sid in sq}
+    seen_players=set()
     for p in players:
         if not isinstance(p,dict) or not identifier(p.get("player_id")) or not isinstance(p.get("name"),str) or not isinstance(p.get("position"),str) or p.get("squad_id") not in sq or p.get("role") not in ROLES:bad("players")
         if p["player_id"] in state["players"] and state["players"][p["player_id"]]["league_id"]!=lid:bad("players")
-        if p["player_id"] in {v["player_id"] for v in players if v is not p}:bad("players")
+        if p["player_id"] in seen_players:bad("players")
+        seen_players.add(p["player_id"])
         counts[p["squad_id"]]+=1
+    live=d.get("matches_in_progress",[])
+    if not isinstance(live,list) or any(not isinstance(m,dict) or not identifier(m.get("match_id")) or m.get("home_squad_id") not in sq or m.get("away_squad_id") not in sq or m["home_squad_id"]==m["away_squad_id"] for m in live):bad("matches_in_progress")
+    if sport not in state["sports"]:fail(404,"SPORT_NOT_FOUND")
+    if tenant not in state["tenants"]:bad("league")
+    conf=state["sports"][sport]["roster"]
+    max_size=lg.get("max_squad_size",conf["max_squad_size"]);required=lg.get("required_positions",conf["required_positions"])
     if any(n>max_size for n in counts.values()):bad("players")
     for pid,v in list(state["players"].items()):
         if v["league_id"]==lid:state["players"].pop(pid)
-    state["rosters"][lid]={"league":lg,"squads":sq,"max_size":max_size,"required_positions":required,"matches_in_progress":d.get("matches_in_progress",[])}
+    state["rosters"][lid]={"league":lg,"squads":sq,"max_size":max_size,"required_positions":required,"matches_in_progress":live}
     for p in players:
         state["players"][p["player_id"]]={"player_id":p["player_id"],"league_id":lid,"name":p["name"],"position":p["position"],"squad_id":p["squad_id"],"role":p["role"],"parent_squad_id":None,"registration_type":"initial","start_date":window["open"],"loan_end_date":None,"history":[],"initial_squad_id":p["squad_id"]}
-    state["transfers"]={k:v for k,v in state["transfers"].items() if v["response"]["registration"] is None or v["response"]["registration"]["league_id"]!=lid}
+    state["transfers"]={k:v for k,v in state["transfers"].items() if v["request"]["league_id"]!=lid}
     return {"league_id":lid,"status":"configured","squad_counts":counts}
 
 def registration(player):
@@ -63,7 +69,8 @@ def maybe_return(player,as_of):
     player.update({"squad_id":dest,"parent_squad_id":None,"registration_type":"loan_return","start_date":d,"loan_end_date":None,"role":"substitute"})
     audit(player,"loan_return",source,dest,utcnow(),"system","Automatic loan return",d,"active")
 
-def transfer_apply(state,d):
+def validate_transfer_request(d):
+    if not isinstance(d,dict):bad("body")
     needed=("request_id","league_id","player_id","type","from_squad_id","effective_date","reason","requested_by")
     if any(k not in d for k in needed) or any(not identifier(d.get(k)) for k in ("request_id","league_id","player_id","from_squad_id")) or d.get("type") not in ("transfer","loan","release") or parsed_date(d.get("effective_date")) is None or not isinstance(d.get("reason"),str) or not isinstance(d.get("requested_by"),str):bad(*needed)
     kind=d["type"];to=d.get("to_squad_id");end=d.get("loan_end_date")
@@ -71,6 +78,10 @@ def transfer_apply(state,d):
     if kind=="release" and to is not None:bad("to_squad_id")
     if kind=="loan" and (parsed_date(end) is None or end<=d["effective_date"]):bad("loan_end_date")
     if kind!="loan" and end is not None:bad("loan_end_date")
+    return kind,to,end
+
+def transfer_apply(state,d):
+    kind,to,end=validate_transfer_request(d)
     rid=d["request_id"];prior=state["transfers"].get(rid)
     if prior is not None:
         if prior["request"]==d:return 200,prior["response"]
@@ -80,9 +91,12 @@ def transfer_apply(state,d):
     p=state["players"].get(d["player_id"])
     if p is None or p["league_id"]!=lid:fail(404,"PLAYER_NOT_FOUND")
     sq=r["squads"];source=d["from_squad_id"]
-    if source not in sq or (to is not None and to not in sq):fail(404,"SQUAD_NOT_FOUND")
+    all_squads={sid:item for roster in state["rosters"].values() for sid,item in roster["squads"].items()}
+    if source not in all_squads or (to is not None and to not in all_squads):fail(404,"SQUAD_NOT_FOUND")
     tenant=r["league"]["tenant_id"]
-    if sq[source]["tenant_id"]!=tenant or (to is not None and sq[to]["tenant_id"]!=tenant):fail(409,"CROSS_TENANT_TRANSFER")
+    if all_squads[source]["tenant_id"]!=tenant or (to is not None and all_squads[to]["tenant_id"]!=tenant):fail(409,"CROSS_TENANT_TRANSFER")
+    if source not in sq or (to is not None and to not in sq):fail(404,"SQUAD_NOT_FOUND")
+    maybe_return(p,d["effective_date"])
     if p["squad_id"]!=source:fail(409,"NOT_IN_SQUAD")
     window=r["league"]["transfer_window"]
     if kind!="release" and not window["open"]<=d["effective_date"]<=window["close"]:fail(409,"TRANSFER_WINDOW_CLOSED")
@@ -103,9 +117,6 @@ def transfer_apply(state,d):
 
 @router.post("/audit/v1/roster/setup",status_code=201)
 async def setup(req:Request):
-    return mutate(lambda s:setup_apply(s,awaited)) if False else await _setup(req)
-
-async def _setup(req):
     d=await body(req)
     return mutate(lambda s:setup_apply(s,d))
 
@@ -123,5 +134,11 @@ def history(player_id:str,as_of:str=None):
         p=s["players"].get(player_id)
         if p is None:fail(404,"PLAYER_NOT_FOUND")
         maybe_return(p,when)
-        return {"player_id":player_id,"as_of":when,"league_id":p["league_id"],"current_squad_id":p["squad_id"],"parent_squad_id":p["parent_squad_id"],"history":p["history"]}
+        current=p["initial_squad_id"]
+        parent=None
+        for entry in p["history"]:
+            if entry["effective_date"]<=when:
+                current=entry["to_squad_id"]
+                parent=entry["from_squad_id"] if entry["action"]=="loan" else None
+        return {"player_id":player_id,"as_of":when,"league_id":p["league_id"],"current_squad_id":current,"parent_squad_id":parent,"history":p["history"]}
     return mutate(lookup)

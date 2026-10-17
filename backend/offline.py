@@ -1,20 +1,25 @@
 import copy
+from datetime import datetime
 from fastapi import APIRouter, Request
 from .core import APIError, bad, identifier, integer, mutate
 from .app import body
-from .scoring import event_apply
-from .roster import transfer_apply
+from .scoring import event_apply, validate_event_request
+from .roster import transfer_apply, validate_transfer_request
 
 router=APIRouter()
 
 def current_version(s,typ,payload):
     if typ=="score_event":
+        _,_,kind,_=validate_event_request(payload)
         match=s["matches"].get(payload.get("match_id"))
-        if match is None:raise APIError(404,"MATCH_NOT_FOUND")
+        if match is None:
+            if kind=="match_init":return 0
+            raise APIError(404,"MATCH_NOT_FOUND")
         return len(match["events"])
+    validate_transfer_request(payload)
     lg=payload.get("league_id");player=s["players"].get(payload.get("player_id"))
     if lg not in s["rosters"]:raise APIError(404,"LEAGUE_NOT_FOUND")
-    if player is None:raise APIError(404,"PLAYER_NOT_FOUND")
+    if player is None or player["league_id"]!=lg:raise APIError(404,"PLAYER_NOT_FOUND")
     return len(player["history"])
 
 def sync_apply(state,envelope):
@@ -22,6 +27,9 @@ def sync_apply(state,envelope):
     if not identifier(device) or not isinstance(actions,list) or not 1<=len(actions)<=100:bad("device_id","actions")
     for a in actions:
         if not isinstance(a,dict) or not identifier(a.get("action_id")) or a.get("type") not in ("score_event","roster_transfer") or not isinstance(a.get("queued_at"),str) or not integer(a.get("base_version")) or a["base_version"]<0 or not isinstance(a.get("payload"),dict):bad("actions")
+        try:
+            if datetime.strptime(a["queued_at"],"%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%dT%H:%M:%SZ") != a["queued_at"]:bad("actions")
+        except ValueError:bad("actions")
     ordered=sorted(enumerate(actions),key=lambda pair:(pair[1]["queued_at"],pair[0]))
     answers=[None]*len(actions);counts={"applied":0,"rejected":0,"duplicate":0}
     for processed,(i,action) in enumerate(ordered,1):
@@ -29,11 +37,18 @@ def sync_apply(state,envelope):
         version=0;signature=None
         status="rejected";resolution="server_wins";err=None
         try:
-            version=current_version(state,typ,payload)
             original=state["offline"].get(ident)
+            if original is not None:
+                try:version=current_version(state,typ,payload)
+                except APIError:version=0
+                status="duplicate";resolution="skipped_duplicate"
+                counts[status]+=1
+                answers[i]={"action_id":action["action_id"],"status":status,"resolution":resolution,"error_code":None,"processed_order":processed,"server_version":version,"signature":None}
+                continue
+            version=current_version(state,typ,payload)
             eid=payload.get("event_id")
             existing=state["events_by_id"].get(eid) if typ=="score_event" else None
-            duplicate=original is not None or (existing is not None and existing["request"]==payload)
+            duplicate=existing is not None and existing["request"]==payload
             if duplicate:
                 status="duplicate";resolution="skipped_duplicate"
             elif action["base_version"]>version:err="INVALID_BASE_VERSION"
@@ -48,9 +63,10 @@ def sync_apply(state,envelope):
                     status="applied";resolution="appended" if action["base_version"]==version else "rebased_append"
                     signature=response.get("signature") if typ=="score_event" else None
                     version=current_version(state,typ,payload)
-            state["offline"][ident]={"type":typ,"action_id":action["action_id"]}
         except APIError as exc:
             err=exc.code
+        # A processed action remains processed even when the server rejected it.
+        state["offline"][ident]={"type":typ,"action_id":action["action_id"]}
         counts[status]+=1
         answers[i]={"action_id":action["action_id"],"status":status,"resolution":resolution,"error_code":err,"processed_order":processed,"server_version":version,"signature":signature}
     return {"device_id":device,"results":answers,"summary":counts}
@@ -59,3 +75,4 @@ def sync_apply(state,envelope):
 async def offline(req:Request):
     data=await body(req)
     return mutate(lambda state:sync_apply(state,data))
+
