@@ -65,4 +65,11 @@ Commit `mobile/release/app-release.apk` explicitly after a local rebuild. The An
 
 Run `./run_tests.sh` for backend unit tests, or `python -m pytest -q tests` after installing `requirements.txt`. The CI workflows compile and test Python and analyze, test and build Flutter. The local HTTP override is for development only. An installable APK must still be checked on an Android 10+ device or emulator before claiming the mobile demo flow passes.
 
+## Verified submission status (October 17, 2026)
+
+- On merged source commit `c7085a6`, the [backend and clean Linux Compose run](https://github.com/rayyanzoffice-ux/Nascon/actions/runs/39018238115) passed. The unit/contract suite has 162 passes and 5 live-only skips; the separate live HTTP suite has 5 passes. It checks exact health/reset behavior, the 20-buyer last-unit race, payment rollback, receipt PDF/HMAC, and validation order. The Compose job also paid for an item, restarted PostgreSQL and Redis, and confirmed inventory state persisted.
+- `COVERAGE.json` records measured coverage for the six graded backend areas (689/703 statements, 98% combined); `TRACEABILITY.md` links each requirement to implementation and tests.
+- The committed `mobile/release/app-release.apk` was produced by [Android release run](https://github.com/rayyanzoffice-ux/Nascon/actions/runs/39017472954). Its manifest reports minimum SDK 29 and target SDK 36; APK Signature Scheme v2 verification passed. The committed APK SHA-256 is `efb3373234a62c43e99d8ae6324aafd48700d1b203d83e6f4ff4a3e43a3808fa`.
+- An Android 10+ device or emulator install, launch, and force-close offline desk check still need a device. Automated Flutter tests cover the 360 × 640 screens, checkout/receipt, and SQLite queue persistence and retry behavior. CI uses only `demo-salt`; the actual `DAY1_SALT` is never committed.
+
 **Competition deadline:** register this public repository with the venue desk, satisfy the required push checkpoints, and make the final push by 15:05 PKT on October 17, 2026.
