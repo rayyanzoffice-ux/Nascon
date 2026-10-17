@@ -76,7 +76,7 @@ def test_single_elimination_seed_order_routing_and_byes(n):
     while len(order) < size:
         new_size = len(order) * 2
         order = [v for seed in order for v in (seed, new_size + 1 - seed)]
-    first = result["rounds"][0]["matches"]
+    first = [m for m in result["rounds"][0]["matches"] if m["bracket"] == "main"]
     assert result["bracket_size"] == size
     assert len(first) == size // 2
     for idx, match in enumerate(first):
