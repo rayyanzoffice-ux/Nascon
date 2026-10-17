@@ -1,0 +1,5 @@
+# Local QA port override. The graded docker-compose.yml still publishes 8080.
+services:
+  api:
+    ports: !override
+      - "127.0.0.1:18081:8080"
