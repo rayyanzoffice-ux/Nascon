@@ -103,6 +103,33 @@ def main():
     status, rejected_replay = call("POST", "/audit/v1/offline-sync", rejected_envelope)
     check(status == 200 and rejected_replay["results"][0]["status"] == "duplicate", "rejected action replay duplicate")
 
+    status, login = call("POST", "/mobile/v1/login",
+                         {"email": "organizer@nascon.test", "password": "Nascon@26"})
+    check(status == 200 and login["role"] == "league_organizer", "mobile demo login")
+    status, demo = call("POST", "/mobile/v1/demo-setup", {}, login["token"])
+    check(status == 200 and demo["status"] == "ready", "mobile demo setup")
+    for path in ("/mobile/v1/fixtures", "/audit/v1/standings/demo-league",
+                 "/mobile/v1/clubs", "/mobile/v1/catalogue", "/audit/v1/score/demo-match-1"):
+        status, _ = call("GET", path, token=login["token"])
+        check(status == 200, "mobile route " + path)
+
+    mobile_actions = [
+        {"action_id": "smoke-mobile-score", "type": "score_event",
+         "queued_at": "2026-10-17T11:01:00Z", "base_version": 1,
+         "payload": {"event_id": "smoke-mobile-event", "match_id": "demo-match-1", "type": "score",
+                     "payload": {"team_id": "demo-team-a", "event_type": "goal"}}},
+        {"action_id": "smoke-mobile-roster", "type": "roster_transfer",
+         "queued_at": "2026-10-17T11:02:00Z", "base_version": 0,
+         "payload": {"request_id": "smoke-mobile-transfer", "league_id": "demo-roster",
+                     "player_id": "player-demo-1", "type": "transfer", "from_squad_id": "sq-demo-alpha",
+                     "to_squad_id": "sq-demo-beta", "effective_date": "2026-10-17",
+                     "loan_end_date": None, "reason": "Demo", "requested_by": "organizer@nascon.test"}},
+    ]
+    status, mobile_result = call("POST", "/audit/v1/offline-sync",
+                                 {"device_id": "smoke-mobile", "actions": mobile_actions})
+    check(status == 200 and mobile_result["summary"]["applied"] == 2,
+          "mobile scoring and roster queue sync")
+
 
 if __name__ == "__main__":
     main()
