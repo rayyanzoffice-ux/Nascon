@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 from .app import body
-from .core import bad, fail, read
+from .core import bad, fail, read, mutate
 from .rbac import tokens
 from .scoring import projection
 
@@ -31,7 +31,7 @@ def leagues():
 
 @router.get("/clubs")
 def clubs():
-    return read(lambda s:[{"club_id":c,"tenant_id":t,"name":c.replace("-"," ").title(),"home_venue":"FAST Islamabad Stadium","staff":[{"role":"Manager","name":"Club Staff"}],"roster":[{"player_id":p["player_id"],"name":p["name"],"position":p["position"]} for p in s["players"].values() if p["squad_id"]==c]} for c,t in s["clubs"].items()])
+    return read(lambda s:[{"club_id":c,"tenant_id":t,"name":c.replace("-"," ").title(),"home_venue":"FAST Islamabad Stadium","staff":[{"role":"Manager","name":"Club Staff"}],"roster":[{"player_id":p["player_id"],"name":p["name"],"position":p["position"]} for p in s["players"].values() if p["squad_id"] in [sid for scenario in s["rosters"].values() for sid, sq in scenario["squads"].items() if sq["club_id"]==c]]} for c,t in s["clubs"].items()])
 
 @router.get("/catalogue")
 def catalogue():
@@ -42,3 +42,21 @@ def catalogue():
 @router.get("/me")
 def me():
     return {"roles":list(ROLES.values()),"tenant_id":"tenant-alpha"}
+
+@router.post("/demo-setup")
+def demo_setup():
+    from .scoring import new_match, event_apply
+    from .roster import setup_apply
+    def seed(s):
+        if "demo-league" not in s["leagues"]:
+            teams=["demo-team-a","demo-team-b","demo-team-c"]
+            fx=[{"match_id":"demo-match-1","home":teams[0],"away":teams[1]},{"match_id":"demo-match-2","home":teams[1],"away":teams[2]}]
+            s["leagues"]["demo-league"]={"league_id":"demo-league","sport_id":"football","teams":teams,"fixtures":fx,"points":{"win":3,"draw":1,"loss":0},"qualification":{"spots":2},"tie_break_order":s["sports"]["football"]["tie_break_order"],"lots_seed":42}
+            for f in fx:s["matches"][f["match_id"]]=new_match(f["match_id"],"football",f["home"],f["away"],"demo-league")
+            event_apply(s,{"event_id":"demo-start-1","match_id":"demo-match-1","type":"match_start","payload":{}})
+        if "demo-roster" not in s["rosters"]:
+            setup_apply(s,{"league":{"league_id":"demo-roster","tenant_id":"tenant-alpha","sport_id":"football","transfer_window":{"open":"2026-10-01","close":"2026-10-31"},"max_squad_size":8,"required_positions":{}},
+               "squads":[{"squad_id":"sq-demo-alpha","club_id":"club-alpha-1","tenant_id":"tenant-alpha","name":"Alpha Squad"},{"squad_id":"sq-demo-beta","club_id":"club-alpha-2","tenant_id":"tenant-alpha","name":"Beta Squad"}],
+               "players":[{"player_id":"player-demo-1","name":"Ayaan Khan","position":"midfielder","squad_id":"sq-demo-alpha","role":"starter"},{"player_id":"player-demo-2","name":"Zain Ahmed","position":"defender","squad_id":"sq-demo-alpha","role":"captain"}],"matches_in_progress":[]})
+        return {"status":"ready","league_id":"demo-league","match_id":"demo-match-1"}
+    return mutate(seed)
