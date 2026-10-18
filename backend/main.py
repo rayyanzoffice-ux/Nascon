@@ -28,3 +28,7 @@ app.include_router(notification_router)
 app.include_router(observability_router)
 app.include_router(privacy_router)
 app.middleware("http")(revocation_middleware)
+from .qr import router as qr_router
+from .guest import router as guest_router
+app.include_router(qr_router)
+app.include_router(guest_router)

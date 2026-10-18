@@ -17,6 +17,12 @@ async def api_error(request, exc):
 
 @app.middleware("http")
 async def envelope(request, call_next):
+    if request.method in ("POST", "PATCH", "PUT", "DELETE"):
+        from .guest import bearer_token, reject_guest_write
+        try:
+            reject_guest_write(bearer_token(request))
+        except APIError as exc:
+            return JSONResponse(status_code=exc.status, content={"error":{"code":exc.code,"message":exc.message,"details":exc.details}})
     if request.method in ("POST","PATCH","PUT") and request.url.path.startswith("/audit/v1/"):
         body = await request.body()
         if len(body) > 1048576:
