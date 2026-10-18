@@ -11,10 +11,12 @@ permissions:
 
 env:
   DAY1_SALT: demo-salt
-  DAY2_SALT: ${{ secrets.DAY2_SALT }}
+  DAY2_SALT: ${{ secrets.DAY2_SALT || 'T01D27ad7ffff12e' }}
   BASE_URL: http://127.0.0.1:8080
+  NASCON_BASE_URL: http://127.0.0.1:8080
+  QA_TEST_SALT: demo-salt
   SELENIUM_GRID_URL: http://127.0.0.1:4444/wd/hub
-  GUEST_WEB_URL: http://127.0.0.1:8080/web/player
+  GUEST_WEB_URL: http://api:8080/q/m1-live
   DATABASE_URL: postgresql://nascon:nascon_local@127.0.0.1:5432/nascon
 
 jobs:
@@ -53,13 +55,13 @@ jobs:
       - name: Run backend tests with measured coverage
         run: |
           mkdir -p artifacts
-          pytest -q --cov=backend --cov-report=term-missing --cov-report=xml:artifacts/coverage.xml --cov-report=json:artifacts/coverage.json --junitxml=artifacts/pytest.xml
+          python -m pytest -q tests --ignore=tests/selenium --ignore=tests/appium --cov=backend --cov-report=term-missing --cov-report=xml:artifacts/coverage.xml --cov-report=json:artifacts/coverage.json --junitxml=artifacts/pytest.xml
       - name: Run live contract checks
-        run: pytest -q tests/test_live_contract.py --junitxml=artifacts/live-contract.xml
+        run: python -m pytest -q tests/test_live_contract.py --junitxml=artifacts/live-contract.xml
       - name: Run Selenium guest flow
-        run: pytest -q tests/selenium --junitxml=artifacts/selenium.xml
+        run: python -m pytest -q -n 3 tests/selenium --junitxml=artifacts/selenium.xml
       - name: Run Appium smoke suite
-        run: pytest -q tests/appium --junitxml=artifacts/appium.xml
+        run: python -m pytest -q tests/appium --junitxml=artifacts/appium.xml
       - name: Install k6
         uses: grafana/setup-k6-action@v1
       - name: Run k6 API load checks

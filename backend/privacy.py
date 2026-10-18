@@ -52,6 +52,15 @@ def anonymize_user(state, user_id):
                 payload = receipt.get("payload")
                 if isinstance(payload, dict):
                     _wipe_pii(payload)
+    for token, merge in list(state.get("guest_merges", {}).items()):
+        if isinstance(merge, dict) and _linked(merge.get("fingerprint"), user_id):
+            merge["fingerprint"]["registered_user_id"] = ANONYMIZED
+        response = merge.get("response") if isinstance(merge, dict) else None
+        if isinstance(response, dict) and response.get("active_cart", {}).get("user_id") == user_id:
+            response["active_cart"]["user_id"] = ANONYMIZED
+    carts = state.get("active_carts", {})
+    if isinstance(carts, dict) and user_id in carts:
+        carts[ANONYMIZED] = carts.pop(user_id)
     # Guest/viewer token stores may be installed by the QR branch. Wipe every
     # linked bearer and remember its hash so even a copied token is rejected.
     revoked = state.setdefault("revoked_token_hashes", [])

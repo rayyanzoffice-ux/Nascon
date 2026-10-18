@@ -116,6 +116,13 @@ async def post_chat(req: Request, session_id: str):
         session = state.get("costream_sessions", {}).get(session_id)
         if session is None or session["status"] != "active":
             fail(404, "COSTREAM_SESSION_NOT_FOUND")
+        from .moderation import moderate
+        moderation = moderate(state, {"chat_room_id": f"chat-{session_id}",
+                                      "incoming_messages": [{"message_id": f"chat-{session['chat_seq'] + 1}", "sender": user_id, "text": message}],
+                                      "check_dlq": False, "simulate_failed_notifications": 0})
+        if not moderation["filtered_messages"]:
+            return {"blocked": True, "sequence": session["chat_seq"], "user_id": user_id, "message": ""}
+        message = moderation["filtered_messages"][0]["text"]
         session["chat_seq"] += 1
         item = {"sequence": session["chat_seq"], "user_id": user_id, "message": message,
                 "timestamp_ms": int(time.time() * 1000)}

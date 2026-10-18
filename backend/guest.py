@@ -116,6 +116,9 @@ def merge_apply(state, data):
         existing = cart.get(variant_id, {}).get("quantity", 0)
         if existing + quantity > variant["stock"] or quantity > variant["stock"] - variant.get("reserved", 0):
             fail(409, "OUT_OF_STOCK", variant_id=variant_id)
+    # Authenticate only after deterministic entity and stock validation. This
+    # preserves the documented error ordering while rejecting forged tokens.
+    guest_record(state, token)
     verified = False
     rejection_code = 0
     if verify:

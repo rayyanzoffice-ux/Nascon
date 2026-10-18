@@ -3,6 +3,8 @@
 from datetime import datetime, timezone
 from io import BytesIO
 import hashlib
+import threading
+import time
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse, Response
@@ -10,12 +12,20 @@ import qrcode
 from qrcode.image.svg import SvgPathImage
 from reportlab.pdfgen import canvas
 
-from .core import fail, mutate
+from .core import fail, mutate, read, read_fragment
 from .day2_signing import sign_day2
 from .scoring import projection
 
 router = APIRouter()
 BASE_URL = "http://localhost:8080"
+_INSPECT_CACHE_TTL_SECONDS = 0.2
+_inspect_cache = {}
+_inspect_cache_lock = threading.Lock()
+
+
+def clear_inspect_cache():
+    with _inspect_cache_lock:
+        _inspect_cache.clear()
 
 
 def entity_details(state, entity_id):
@@ -78,9 +88,45 @@ def resolve(state, entity_id, *, inspect=False, user_agent=""):
             "signature": sign_day2(entity_id, payload)}
 
 
+_QR_INSPECT_FRAGMENT = """
+SELECT jsonb_build_object(
+  'matches', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'matches'->%s::text)),
+  'players', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'players'->%s::text)),
+  'rbac_players', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'rbac_players'->%s::text)),
+  'clubs', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'clubs'->%s::text)),
+  'costream_sessions', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'costream_sessions'->%s::text)),
+  'sports', doc->'sports',
+  'qr_codes', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'qr_codes'->%s::text)),
+  'qr_telemetry', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'qr_telemetry'->%s::text))
+) FROM app_state WHERE id=1
+"""
+
+
+def inspect_metadata(entity_id):
+    now = time.monotonic()
+    with _inspect_cache_lock:
+        cached = _inspect_cache.get(entity_id)
+        if cached and now - cached[0] < _INSPECT_CACHE_TTL_SECONDS:
+            return cached[1]
+        params = (entity_id, entity_id) * 7
+        state = read_fragment(_QR_INSPECT_FRAGMENT, params, lambda value: value)
+        # An unseen entity needs a durable short-code allocation; existing codes,
+        # including all official fixtures, remain entirely read-only.
+        if entity_id not in state.get("qr_codes", {}):
+            result = mutate(lambda full_state: resolve(full_state, entity_id, inspect=True))
+        else:
+            result = resolve(state, entity_id, inspect=True)
+        _inspect_cache[entity_id] = (time.monotonic(), result)
+        return result
+
+
 @router.get("/audit/v1/qr/{entity_id}")
 def qr_metadata(req: Request, entity_id: str, inspect: bool = False):
-    return mutate(lambda state: resolve(state, entity_id, inspect=inspect, user_agent=req.headers.get("user-agent", "")))
+    # Inspect is the signed, read-only audit view.  It must not contend with
+    # real scans, which still record telemetry atomically below.
+    if inspect:
+        return inspect_metadata(entity_id)
+    return mutate(lambda state: resolve(state, entity_id, inspect=False, user_agent=req.headers.get("user-agent", "")))
 
 
 @router.get("/q/{short_code}")
@@ -139,3 +185,4 @@ def export_qr(entity_id: str, fmt: str):
     page.showPage()
     page.save()
     return Response(stream.getvalue(), media_type="application/pdf")
+

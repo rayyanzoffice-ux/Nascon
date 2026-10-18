@@ -15,10 +15,11 @@ def baseline(seed=42, stock=None):
     defaults={"var-jersey-001-M":1,"var-jersey-001-L":5}
     defaults.update(stock or {})
     return {"seed":seed,"sports":baseline_sports(),"tenants":{"tenant-alpha":"Alpha Sports","tenant-beta":"Beta Athletics"},
-      "leagues":{},"matches":{"match-m1":{"match_id":"match-m1","sport_id":"football","league_id":None,"home":"club-alpha-1","away":"club-alpha-2","events":[{"event_id":"seed-match-m1-start","type":"match_start","payload":{},"signature":""}]}},"events_by_id":{},"rosters":{},"players":{},"transfers":{},"offline":{},"orders":{},
+      "leagues":{"league-alpha-1":"tenant-alpha","league-alpha-2":"tenant-alpha","league-beta-1":"tenant-beta"},"matches":{"match-m1":{"match_id":"match-m1","sport_id":"football","league_id":"league-alpha-1","home":"club-alpha-1","away":"club-alpha-2","events":[{"event_id":"seed-match-m1-start","type":"match_start","payload":{},"signature":""},{"event_id":"seed-match-m1-goal","type":"score","payload":{"team_id":"club-alpha-1","event_type":"goal"},"signature":""}]}},"events_by_id":{},"rosters":{},"players":{},"transfers":{},"offline":{},"orders":{},
       "inventory":{key:{"stock":value,"reserved":0,"price_minor":450000} for key,value in defaults.items()},
       "clubs":{"club-alpha-1":"tenant-alpha","club-alpha-2":"tenant-alpha","club-beta-1":"tenant-beta"},
       "rbac_leagues":{"league-alpha-1":"tenant-alpha","league-alpha-2":"tenant-alpha","league-beta-1":"tenant-beta"},
-      "rbac_players":{"player-alpha-1":"club-alpha-1","player-alpha-2":"club-alpha-2","player-beta-1":"club-beta-1"},
+      "rbac_players":{"player-alpha-1":"club-alpha-1","player-alpha-2":"club-alpha-2","player-beta-1":"club-beta-1","player-beta-2":"club-beta-1"},
+      "qr_codes":{"match-m1":"m1-live","player-alpha-1":"p-alpha-1","club-alpha-1":"c-alpha-1"},"qr_telemetry":{},"active_carts":{"player-alpha-1":{}},
       "guest_tokens":{"guest_anon_tok_7721":{"expires_at":(datetime.now(timezone.utc)+timedelta(hours=2)).isoformat(),"scope":["playback:read","score:read","cart:stage"]}},
       "auth_serial":0}
