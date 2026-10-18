@@ -1,28 +1,41 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-const base = __ENV.BASE_URL || 'http://127.0.0.1:8080';
+const base = __ENV.BASE_URL || 'http://localhost:8080';
 
 export const options = {
-  vus: Number(__ENV.K6_VUS || 5),
-  duration: __ENV.K6_DURATION || '10s',
+  scenarios: {
+    guest_viewers: { executor: 'constant-vus', vus: 500, duration: '15s', exec: 'viewStream' },
+    chat_posters: { executor: 'constant-vus', vus: 50, duration: '15s', exec: 'postChat' },
+  },
   thresholds: {
-    http_req_failed: ['rate<0.01'],
-    http_req_duration: ['p(95)<1000'],
+    http_req_failed: ['rate==0.00'],
+    http_req_duration: ['p(95)<800'],
   },
 };
 
-export default function () {
-  const health = http.get(`${base}/health`);
-  check(health, {
-    'health responds 200': (response) => response.status === 200,
-    'health reports ready': (response) => response.json('status') === 'ok',
-  });
-
-  const ping = http.get(`${base}/api/v1/ping`);
-  check(ping, {
-    'ping responds 200': (response) => response.status === 200,
-    'ping payload is valid': (response) => response.json('pong') === true,
+export function viewStream() {
+  const response = http.get(`${base}/audit/v1/qr/match-m1?inspect=true`);
+  check(response, {
+    'guest QR status is 200': (result) => result.status === 200,
+    'has target_route': (result) => result.json('target_route') !== undefined,
   });
   sleep(0.1);
+}
+
+export function postChat() {
+  const payload = JSON.stringify({
+    chat_room_id: 'chat-cs-session-101',
+    incoming_messages: [
+      { message_id: `k6-${__VU}-${__ITER}`, sender: `user-${__VU}`, text: 'Live reaction' },
+    ],
+    check_dlq: false,
+  });
+  const response = http.post(`${base}/audit/v1/moderation/test`, payload, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  check(response, {
+    'chat status is 200 or 201': (result) => result.status === 200 || result.status === 201,
+  });
+  sleep(0.2);
 }

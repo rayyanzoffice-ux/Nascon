@@ -138,7 +138,8 @@ def test_metrics_are_live_state(monkeypatch):
     state, _ = memory_store(monkeypatch)
     state["stream_keys"] = {"s1": {"status": "active", "bitrate_kbps": 1300},
                             "s2": {"status": "revoked", "bitrate_kbps": 900}}
-    state["qr_mappings"] = {"q": {"scan_count": 7}}
+    state["qr_codes"] = {"match-m1": "m1-live"}
+    state["qr_telemetry"] = {"match-m1": {"scan_count": 7, "buckets": {}}}
     notifications.enqueue_failed_notification(state, "x", "failed")
     response = observability.metrics()
     assert response.headers["content-type"] == "text/plain; version=0.0.4"
