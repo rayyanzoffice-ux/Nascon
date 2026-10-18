@@ -60,12 +60,15 @@ def checkout_apply(state,data):
 async def checkout(req:Request):
     d=await body(req)
     code,res=mutate(lambda s:checkout_apply(s,d))
-    if code==201:
-        try:
-            import redis,os
-            redis.Redis.from_url(os.getenv("REDIS_URL","redis://redis:6379/0"),socket_timeout=.2).xadd("nascon:events",{"type":"order.paid","order_id":res["order_id"]})
-        except Exception:pass
+    if code==201:publish_order(res["order_id"])
     return JSONResponse(status_code=code,content=res)
+
+
+def publish_order(order_id):
+    try:
+        import redis,os
+        redis.Redis.from_url(os.getenv("REDIS_URL","redis://redis:6379/0"),socket_timeout=.2).xadd("nascon:events",{"type":"order.paid","order_id":order_id})
+    except Exception:pass
 
 @router.get("/audit/v1/inventory/{variant_id}")
 def inventory(variant_id:str):

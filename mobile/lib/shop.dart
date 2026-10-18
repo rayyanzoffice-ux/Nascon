@@ -27,6 +27,10 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   void add(Map<String, dynamic> variant) {
+    if (store.role != 'player') {
+      toast(context, 'Sign in as a player to purchase merchandise.');
+      return;
+    }
     final id = variant['variant_id'].toString();
     final next = (cart[id]?['quantity'] as int? ?? 0) + 1;
     if (next > (variant['stock'] as num).toInt()) {
@@ -45,6 +49,7 @@ class _StoreScreenState extends State<StoreScreen> {
               (item['quantity'] as int)));
 
   Future<void> checkout() async {
+    if (store.role != 'player') return;
     if (cart.isEmpty || busy) return;
     final confirmed = await showDialog<bool>(
         context: context,
@@ -65,7 +70,7 @@ class _StoreScreenState extends State<StoreScreen> {
     if (confirmed != true || !mounted) return;
     setState(() => busy = true);
     try {
-      final receipt = await store.request('POST', '/audit/v1/checkout', data: {
+      final receipt = await store.request('POST', '/mobile/v1/checkout', data: {
         'order_id': 'ord-${const Uuid().v4()}',
         'customer_id': store.email.isEmpty ? 'demo-customer' : store.email,
         'items': cart.values
@@ -77,8 +82,9 @@ class _StoreScreenState extends State<StoreScreen> {
         'discount_code': null,
         'payment': {'token': 'tok_success'},
       });
-      final old = await store.local('receipts') as List? ?? [];
-      await store.save('receipts', [receipt, ...old].take(20).toList());
+      final receiptKey = 'receipts_${store.email}';
+      final old = await store.local(receiptKey) as List? ?? [];
+      await store.save(receiptKey, [receipt, ...old].take(20).toList());
       if (!mounted) return;
       setState(() {
         cart.clear();
@@ -164,7 +170,7 @@ class _StoreScreenState extends State<StoreScreen> {
                                       const SizedBox(width: 8),
                                       FilledButton(
                                           onPressed:
-                                              (variant['stock'] as num) > 0
+                                              store.role == 'player' && (variant['stock'] as num) > 0
                                                   ? () => add(variant)
                                                   : null,
                                           child: const Text('Add')),
@@ -213,7 +219,7 @@ class _StoreScreenState extends State<StoreScreen> {
                 header('Past receipts',
                     'Saved on this device for offline viewing'),
                 FutureBuilder<dynamic>(
-                    future: store.local('receipts'),
+                    future: store.local('receipts_${store.email}'),
                     builder: (context, saved) {
                       final receipts =
                           saved.data is List ? saved.data as List : [];

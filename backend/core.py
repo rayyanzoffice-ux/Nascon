@@ -48,6 +48,20 @@ def sign(id_, payload):
     salt = os.environ.get("DAY1_SALT", "")
     return hmac.new(salt.encode("utf-8"), (id_ + "|" + canonical(payload)).encode("utf-8"), hashlib.sha256).hexdigest()
 
+
+def sign_day2(id_, payload):
+    """Shared Day 2 HMAC primitive; callers supply their contract payload."""
+    salt=os.environ.get("DAY2_SALT")
+    if not salt:
+        raise RuntimeError("DAY2_SALT is required for Day 2 signatures")
+    if not isinstance(id_,str) or not isinstance(payload,dict):bad("signature_payload")
+    message=(id_+"|"+canonical(payload)).encode("utf-8")
+    return hmac.new(salt.encode("utf-8"),message,hashlib.sha256).hexdigest()
+
+
+def verify_day2(id_, payload, signature):
+    return isinstance(signature,str) and hmac.compare_digest(sign_day2(id_,payload),signature)
+
 def validate_order(values, fallback=ORDER):
     if values is None:
         return list(fallback)

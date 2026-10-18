@@ -32,6 +32,8 @@ def projection(match,sports):
                 v["balls"]+=int(tpl["legal_ball"])
         elif kind=="discipline":values[t]["fair_play"]+=p["points"]
         elif kind=="tiebreak_winner":tie=t
+    if match.get("cancellation") is not None:
+        status="cancelled"
     if model=="innings":
         bpo=sport["periods"]["balls_per_over"]
         for v in values.values():v["overs"]=str(v["balls"]//bpo)+"."+str(v["balls"]%bpo)

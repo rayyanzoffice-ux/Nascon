@@ -24,3 +24,15 @@ Live integration tests are enabled by setting `NASCON_BASE_URL` and `QA_TEST_SAL
 ## Resolved regression vectors
 
 Required passing tests preserve coverage for offline rejected-action replay, cross-tenant roster squad resolution, and the 32-team Swiss request-time limit. See `qa/FAILURES.md` for the original reproductions and resolution status.
+
+## Day 2 core integration repairs
+
+| Requirement | Implementation | Automated evidence |
+|---|---|---|
+| Account-bound login and isolated role profile | `backend/rbac.py`, `backend/mobile_api.py`, `mobile/lib/services.dart` | `tests/test_mobile_integration.py::test_mobile_profile_has_only_its_own_role` |
+| Organizer match cancellation and soft deletion | `backend/mobile_api.py`, `backend/scoring.py`, `mobile/lib/actions.dart` | `tests/test_mobile_integration.py::test_organizer_cancellation_preserves_match_history` |
+| Player-only mobile checkout, stock and PDF download | `backend/mobile_api.py`, `backend/store.py`, `mobile/lib/shop.dart` | `tests/test_mobile_integration.py::test_mobile_checkout_requires_player_and_owns_receipt` |
+| Role-scoped offline submission | `backend/mobile_api.py`, `mobile/lib/services.dart` | `tests/test_mobile_integration.py::test_mobile_offline_sync_enforces_action_role` |
+| Shared Day 2 signature primitive | `backend/core.py` | `tests/test_core.py::test_day2_signature_requires_salt_and_detects_tampering` |
+
+The Day 1 `/audit/v1/*` checkout, scoring, offline and reset contracts remain covered by the original tests. Day 2 requirement IDs and baseline entities will be mapped after the official Day 2 specification is available in this checkout.

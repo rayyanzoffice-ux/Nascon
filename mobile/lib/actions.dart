@@ -161,6 +161,29 @@ class _MatchScreenState extends State<MatchScreen> {
     setState(refresh);
   }
 
+  Future<void> cancelMatch() async {
+    final yes = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+              title: const Text('Cancel this match?'),
+              content: const Text('The match will remain in the record as cancelled.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Keep match')),
+                FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Cancel match')),
+              ],
+            ));
+    if (yes != true || !mounted) return;
+    try {
+      await store.request('POST', '/mobile/v1/matches/${widget.matchId}/cancel');
+      if (mounted) {
+        toast(context, 'Match cancelled.');
+        setState(refresh);
+      }
+    } catch (e) {
+      if (mounted) toast(context, e.toString());
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Match centre'), actions: [
@@ -241,6 +264,11 @@ class _MatchScreenState extends State<MatchScreen> {
                                         ]),
                                       ]))),
                               if (canScore) ...[
+                                if (match['status'] != 'completed' && match['status'] != 'cancelled')
+                                  TextButton.icon(
+                                      onPressed: cancelMatch,
+                                      icon: const Icon(Icons.event_busy),
+                                      label: const Text('Cancel match')),
                                 const SizedBox(height: 12),
                                 ElevatedButton.icon(
                                     onPressed: match['status'] == 'in_progress'
