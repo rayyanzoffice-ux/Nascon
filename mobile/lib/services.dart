@@ -142,12 +142,13 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<dynamic> cached(String key, String path) async {
+    final scopedKey = '${email.isEmpty ? 'guest' : email}::$key';
     try {
       final value = await request('GET', path);
-      await save(key, value);
+      await save(scopedKey, value);
       return value;
     } catch (_) {
-      final previous = await local(key);
+      final previous = await local(scopedKey);
       if (previous != null) return previous;
       rethrow;
     }
@@ -214,16 +215,7 @@ class AppStore extends ChangeNotifier {
       try {
         await request('POST', '/mobile/v1/demo-setup');
       } catch (_) {}
-      // The public demo uses one shared password. Cache each role's server-issued
-      // token in secure storage so judges can switch roles in airplane mode.
-      for (final prefix in demoRoles.keys) {
-        try {
-          final account = await request('POST', '/mobile/v1/login',
-              data: {'email': '$prefix@nascon.test', 'password': password});
-          await secure.write(
-              key: 'demo_jwt_$prefix', value: account['token'].toString());
-        } catch (_) {/* Keep the signed-in account usable. */}
-      }
+      await secure.write(key: 'demo_jwt_${mail.split('@').first}', value: token);
     }
     notifyListeners();
   }
@@ -284,7 +276,7 @@ class AppStore extends ChangeNotifier {
     syncing = true;
     notifyListeners();
     try {
-      final response = await request('POST', '/audit/v1/offline-sync',
+      final response = await request('POST', '/mobile/v1/offline-sync',
           data: {'device_id': deviceId, 'actions': actions});
       final received = (response['results'] as List)
           .map((x) => Map<String, dynamic>.from(x))

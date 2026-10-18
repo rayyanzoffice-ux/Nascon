@@ -1,4 +1,4 @@
-from backend.core import canonical, sign, validate_order
+from backend.core import canonical, sign, sign_day2, verify_day2, validate_order
 from backend.seed import baseline, baseline_sports
 import os
 
@@ -13,3 +13,13 @@ def test_seeds():
 
 def test_canonical():
     assert canonical({"b":1,"a":"é"})=='{"a":"é","b":1}'
+
+
+def test_day2_signature_requires_salt_and_detects_tampering(monkeypatch):
+    import pytest
+    monkeypatch.delenv("DAY2_SALT",raising=False)
+    with pytest.raises(RuntimeError):sign_day2("item-1",{"value":1})
+    monkeypatch.setenv("DAY2_SALT","test-salt")
+    signature=sign_day2("item-1",{"value":1})
+    assert verify_day2("item-1",{"value":1},signature)
+    assert not verify_day2("item-1",{"value":2},signature)

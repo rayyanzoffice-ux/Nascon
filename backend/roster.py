@@ -44,7 +44,7 @@ def setup_apply(state,d):
     max_size=lg.get("max_squad_size",conf["max_squad_size"]);required=lg.get("required_positions",conf["required_positions"])
     if any(n>max_size for n in counts.values()):bad("players")
     for pid,v in list(state["players"].items()):
-        if v["league_id"]==lid:state["players"].pop(pid)
+        if v.get("league_id")==lid:state["players"].pop(pid)
     state["rosters"][lid]={"league":lg,"squads":sq,"max_size":max_size,"required_positions":required,"matches_in_progress":live}
     for p in players:
         state["players"][p["player_id"]]={"player_id":p["player_id"],"league_id":lid,"name":p["name"],"position":p["position"],"squad_id":p["squad_id"],"role":p["role"],"parent_squad_id":None,"registration_type":"initial","start_date":window["open"],"loan_end_date":None,"history":[],"initial_squad_id":p["squad_id"]}
@@ -89,7 +89,7 @@ def transfer_apply(state,d):
     lid=d["league_id"];r=state["rosters"].get(lid)
     if r is None:fail(404,"LEAGUE_NOT_FOUND")
     p=state["players"].get(d["player_id"])
-    if p is None or p["league_id"]!=lid:fail(404,"PLAYER_NOT_FOUND")
+    if p is None or p.get("league_id")!=lid:fail(404,"PLAYER_NOT_FOUND")
     sq=r["squads"];source=d["from_squad_id"]
     all_squads={sid:item for roster in state["rosters"].values() for sid,item in roster["squads"].items()}
     if source not in all_squads or (to is not None and to not in all_squads):fail(404,"SQUAD_NOT_FOUND")
@@ -102,10 +102,10 @@ def transfer_apply(state,d):
     if kind!="release" and not window["open"]<=d["effective_date"]<=window["close"]:fail(409,"TRANSFER_WINDOW_CLOSED")
     if p["registration_type"]=="loan":fail(409,"PLAYER_ON_LOAN")
     if kind!="release":
-        dest_count=sum(x["squad_id"]==to and x["league_id"]==lid for x in state["players"].values())
+        dest_count=sum(x.get("squad_id")==to and x.get("league_id")==lid for x in state["players"].values())
         if dest_count+1>r["max_size"]:fail(409,"SQUAD_FULL")
     required=r["required_positions"].get(p["position"],0)
-    count=sum(x["league_id"]==lid and x["squad_id"]==source and x["position"]==p["position"] for x in state["players"].values())
+    count=sum(x.get("league_id")==lid and x.get("squad_id")==source and x.get("position")==p["position"] for x in state["players"].values())
     if count-1<required:fail(409,"MIN_POSITION_VIOLATION")
     blocking=next((m["match_id"] for m in r.get("matches_in_progress",[]) if source in (m.get("home_squad_id"),m.get("away_squad_id"))),None)
     transition="deferred_until_match_end" if blocking else "active"

@@ -1,8 +1,12 @@
+import base64
 from fastapi import APIRouter, Request
+from fastapi.responses import Response, JSONResponse
 from .app import body
-from .core import bad, fail, read, mutate
-from .rbac import tokens
+from .core import bad, fail, read, mutate, identifier, utcnow
+from .rbac import mobile_token, require_mobile_role
 from .scoring import projection
+from .store import checkout_apply, publish_order
+from .offline import sync_apply
 
 router=APIRouter(prefix="/mobile/v1")
 ROLES={"admin":"super_admin","organizer":"league_organizer","manager":"club_manager","player":"player","viewer":"viewer"}
@@ -13,7 +17,7 @@ async def login(req:Request):
     email=d.get("email","");pwd=d.get("password")
     prefix=email.split("@")[0] if isinstance(email,str) else ""
     if email!=prefix+"@nascon.test" or prefix not in ROLES or pwd!="Nascon@26":fail(401,"UNAUTHENTICATED")
-    return {"token":tokens()[ROLES[prefix]],"role":ROLES[prefix],"email":email,"tenant_id":"tenant-alpha","display_name":prefix.capitalize()}
+    return {"token":mobile_token(ROLES[prefix],email),"role":ROLES[prefix],"email":email,"tenant_id":"tenant-alpha","display_name":prefix.capitalize()}
 
 @router.get("/fixtures")
 def fixtures():
@@ -40,8 +44,72 @@ def catalogue():
     return read(take)
 
 @router.get("/me")
-def me():
-    return {"roles":list(ROLES.values()),"tenant_id":"tenant-alpha"}
+def me(req:Request):
+    account=require_mobile_role(req,*ROLES.values())
+    return {"role":account["role"],"roles":[account["role"]],"email":account["sub"],"tenant_id":account["tenant_id"]}
+
+
+@router.post("/checkout")
+async def mobile_checkout(req:Request):
+    account=require_mobile_role(req,"player")
+    data=await body(req)
+    if data.get("customer_id")!=account["sub"]:fail(403,"FORBIDDEN")
+    code,result=mutate(lambda state:checkout_apply(state,data))
+    if code==201:publish_order(result["order_id"])
+    return JSONResponse(status_code=code,content=result)
+
+
+@router.get("/receipts/{order_id}.pdf")
+def mobile_receipt(req:Request,order_id:str):
+    if not identifier(order_id):bad("order_id")
+    account=require_mobile_role(req,"player")
+    def find(state):
+        order=state["orders"].get(order_id)
+        if order is None or order["request"]["customer_id"]!=account["sub"]:fail(404,"ORDER_NOT_FOUND")
+        return order["response"]["receipt"]["pdf_base64"]
+    pdf=base64.b64decode(read(find))
+    return Response(pdf,media_type="application/pdf",headers={"Content-Disposition":f'attachment; filename="{order_id}.pdf"'})
+
+
+def cancel_match_apply(state, match_id, account, reason):
+    if account["role"] not in ("league_organizer","super_admin"):fail(403,"FORBIDDEN")
+    match=state["matches"].get(match_id)
+    if match is None:fail(404,"MATCH_NOT_FOUND")
+    league_id=match.get("league_id")
+    if account["role"]!="super_admin" and state["rbac_leagues"].get(league_id)!=account["tenant_id"]:fail(403,"FORBIDDEN")
+    status=projection(match,state["sports"])["status"]
+    if status=="cancelled":return {"match_id":match_id,"status":"cancelled"}
+    if status=="completed":fail(409,"ILLEGAL_TRANSITION")
+    match["cancellation"]={"reason":reason,"by":account["sub"],"at":utcnow()}
+    return {"match_id":match_id,"status":"cancelled"}
+
+
+@router.post("/matches/{match_id}/cancel")
+async def cancel_match(req:Request,match_id:str):
+    account=require_mobile_role(req,"league_organizer","super_admin")
+    if not identifier(match_id):bad("match_id")
+    data=await body(req,True)
+    reason=data.get("reason","Cancelled by organizer")
+    if not isinstance(reason,str) or not 1<=len(reason)<=200:bad("reason")
+    return mutate(lambda state:cancel_match_apply(state,match_id,account,reason))
+
+
+@router.delete("/matches/{match_id}")
+def delete_match(req:Request,match_id:str):
+    account=require_mobile_role(req,"league_organizer","super_admin")
+    if not identifier(match_id):bad("match_id")
+    return mutate(lambda state:cancel_match_apply(state,match_id,account,"Deleted by organizer"))
+
+
+@router.post("/offline-sync")
+async def mobile_offline_sync(req:Request):
+    account=require_mobile_role(req,"league_organizer","club_manager","super_admin")
+    data=await body(req)
+    actions=data.get("actions")
+    if isinstance(actions,list):
+        allowed={"score_event"} if account["role"]=="league_organizer" else {"roster_transfer"} if account["role"]=="club_manager" else {"score_event","roster_transfer"}
+        if any(isinstance(action,dict) and action.get("type") not in allowed for action in actions):fail(403,"FORBIDDEN")
+    return mutate(lambda state:sync_apply(state,data))
 
 @router.post("/demo-setup")
 def demo_setup():
@@ -49,6 +117,7 @@ def demo_setup():
     from .roster import setup_apply
     def seed(s):
         if "demo-league" not in s["leagues"]:
+            s["rbac_leagues"]["demo-league"]="tenant-alpha"
             teams=["demo-team-a","demo-team-b","demo-team-c"]
             fx=[{"match_id":"demo-match-1","home":teams[0],"away":teams[1]},{"match_id":"demo-match-2","home":teams[1],"away":teams[2]}]
             s["leagues"]["demo-league"]={"league_id":"demo-league","sport_id":"football","teams":teams,"fixtures":fx,"points":{"win":3,"draw":1,"loss":0},"qualification":{"spots":2},"tie_break_order":s["sports"]["football"]["tie_break_order"],"lots_seed":42}

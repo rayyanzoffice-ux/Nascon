@@ -17,6 +17,19 @@ def tokens():
     expiry=datetime.now(timezone.utc)+timedelta(hours=12)
     return {role:jwt.encode({"role":role,"tenant_id":None if role=="super_admin" else "tenant-alpha","exp":expiry},SECRET,algorithm="HS256") for role in ROLES}
 
+
+def mobile_token(role, email):
+    """Issue a token bound to one signed-in mobile account."""
+    expiry=datetime.now(timezone.utc)+timedelta(hours=12)
+    return jwt.encode({"sub":email,"role":role,"tenant_id":None if role=="super_admin" else "tenant-alpha","exp":expiry},SECRET,algorithm="HS256")
+
+
+def require_mobile_role(req, *roles):
+    account=principal(req)
+    if not account.get("sub"):fail(401,"UNAUTHENTICATED")
+    if account["role"] not in roles:fail(403,"FORBIDDEN")
+    return account
+
 def principal(req):
     authorization=req.headers.get("authorization","")
     if not authorization.startswith("Bearer "):fail(401,"UNAUTHENTICATED")
