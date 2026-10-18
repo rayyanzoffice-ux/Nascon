@@ -10,7 +10,7 @@ import qrcode
 from qrcode.image.svg import SvgPathImage
 from reportlab.pdfgen import canvas
 
-from .core import fail, mutate
+from .core import fail, mutate, read
 from .day2_signing import sign_day2
 from .scoring import projection
 
@@ -80,7 +80,11 @@ def resolve(state, entity_id, *, inspect=False, user_agent=""):
 
 @router.get("/audit/v1/qr/{entity_id}")
 def qr_metadata(req: Request, entity_id: str, inspect: bool = False):
-    return mutate(lambda state: resolve(state, entity_id, inspect=inspect, user_agent=req.headers.get("user-agent", "")))
+    # Inspect is the signed, read-only audit view.  It must not contend with
+    # real scans, which still record telemetry atomically below.
+    if inspect:
+        return read(lambda state: resolve(state, entity_id, inspect=True))
+    return mutate(lambda state: resolve(state, entity_id, inspect=False, user_agent=req.headers.get("user-agent", "")))
 
 
 @router.get("/q/{short_code}")
