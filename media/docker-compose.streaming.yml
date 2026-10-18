@@ -1,0 +1,57 @@
+# Merge with docker-compose.yml using: docker compose -f docker-compose.yml -f media/docker-compose.streaming.yml up -d --build
+services:
+  api:
+    command: ["uvicorn", "backend.streaming_main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+    environment:
+      DAY2_SALT: ${DAY2_SALT}
+      MEDIAMTX_API_URL: http://mediamtx:9997
+      MEDIA_INTERNAL_TOKEN: ${MEDIA_INTERNAL_TOKEN}
+  minio:
+    ports:
+      - "9000:9000"
+  mediamtx:
+    image: bluenviron/mediamtx:1.21.2
+    volumes:
+      - ./media/mediamtx.yml:/mediamtx.yml:ro
+      - media_recordings:/recordings
+    ports:
+      - "1935:1935"
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+    depends_on:
+      - api
+    restart: unless-stopped
+  media_compositor:
+    build:
+      context: .
+      dockerfile: media/Dockerfile
+    command: ["python", "-m", "media.compositor"]
+    environment:
+      DATABASE_URL: postgresql://nascon:nascon_local@db:5432/nascon
+      MEDIA_INTERNAL_TOKEN: ${MEDIA_INTERNAL_TOKEN}
+      MEDIA_RTSP_URL: rtsp://mediamtx:8554
+      MEDIA_RTMP_URL: rtmp://mediamtx:1935
+    depends_on:
+      - db
+      - mediamtx
+    restart: unless-stopped
+  vod_indexer:
+    build:
+      context: .
+      dockerfile: media/Dockerfile
+    command: ["python", "-m", "media.vod_indexer"]
+    environment:
+      DATABASE_URL: postgresql://nascon:nascon_local@db:5432/nascon
+      MINIO_URL: http://minio:9000
+      MINIO_ROOT_USER: nasconlocal
+      MINIO_ROOT_PASSWORD: nasconlocal123
+    volumes:
+      - media_recordings:/recordings:ro
+    depends_on:
+      - db
+      - minio
+      - mediamtx
+    restart: unless-stopped
+volumes:
+  media_recordings:
