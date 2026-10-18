@@ -1,5 +1,6 @@
 """Synchronous chat filtering and the deterministic Day 2 audit probe."""
 
+import asyncio
 import hashlib
 import hmac
 import os
@@ -8,6 +9,7 @@ import time
 import unicodedata
 
 from fastapi import APIRouter, Request
+from starlette.concurrency import run_in_threadpool
 
 from .app import body
 from .core import bad, canonical, identifier, mutate
@@ -147,4 +149,14 @@ def moderate(state, data, now=None):
 async def moderation_test(req: Request):
     data = await body(req)
     _validate(data)
-    return mutate(lambda state: moderate(state, data))
+    # PostgreSQL is synchronous. Running this transaction on the event loop
+    # stalls every QR and score response while chat writes wait for the shared
+    # state row lock under load.
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # Some contract unit tests drive this coroutine directly without an
+        # event loop; preserve that harness while the ASGI path uses a worker.
+        return mutate(lambda state: moderate(state, data))
+    return await run_in_threadpool(mutate, lambda state: moderate(state, data))
+

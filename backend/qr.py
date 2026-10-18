@@ -3,6 +3,8 @@
 from datetime import datetime, timezone
 from io import BytesIO
 import hashlib
+import threading
+import time
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse, Response
@@ -16,6 +18,14 @@ from .scoring import projection
 
 router = APIRouter()
 BASE_URL = "http://localhost:8080"
+_INSPECT_CACHE_TTL_SECONDS = 0.2
+_inspect_cache = {}
+_inspect_cache_lock = threading.Lock()
+
+
+def clear_inspect_cache():
+    with _inspect_cache_lock:
+        _inspect_cache.clear()
 
 
 def entity_details(state, entity_id):
@@ -93,13 +103,21 @@ SELECT jsonb_build_object(
 
 
 def inspect_metadata(entity_id):
-    params = (entity_id, entity_id) * 7
-    state = read_fragment(_QR_INSPECT_FRAGMENT, params, lambda value: value)
-    # An unseen entity needs a durable short-code allocation; existing codes,
-    # including all official fixtures, remain entirely read-only.
-    if entity_id not in state.get("qr_codes", {}):
-        return mutate(lambda full_state: resolve(full_state, entity_id, inspect=True))
-    return resolve(state, entity_id, inspect=True)
+    now = time.monotonic()
+    with _inspect_cache_lock:
+        cached = _inspect_cache.get(entity_id)
+        if cached and now - cached[0] < _INSPECT_CACHE_TTL_SECONDS:
+            return cached[1]
+        params = (entity_id, entity_id) * 7
+        state = read_fragment(_QR_INSPECT_FRAGMENT, params, lambda value: value)
+        # An unseen entity needs a durable short-code allocation; existing codes,
+        # including all official fixtures, remain entirely read-only.
+        if entity_id not in state.get("qr_codes", {}):
+            result = mutate(lambda full_state: resolve(full_state, entity_id, inspect=True))
+        else:
+            result = resolve(state, entity_id, inspect=True)
+        _inspect_cache[entity_id] = (time.monotonic(), result)
+        return result
 
 
 @router.get("/audit/v1/qr/{entity_id}")
@@ -167,3 +185,4 @@ def export_qr(entity_id: str, fmt: str):
     page.showPage()
     page.save()
     return Response(stream.getvalue(), media_type="application/pdf")
+

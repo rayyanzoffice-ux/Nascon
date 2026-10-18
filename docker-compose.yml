@@ -42,6 +42,7 @@ services:
       - "8889:8889"
     volumes:
       - ./media/mediamtx.yml:/mediamtx.yml:ro
+      - media_recordings:/recordings
   media-compositor:
     build:
       context: .
@@ -163,3 +164,4 @@ volumes:
   redis_data:
   minio_data:
   media_recordings:
+

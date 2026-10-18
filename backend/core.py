@@ -197,3 +197,4 @@ def boot(seed_fn):
         row = c.execute("SELECT 1 FROM app_state WHERE id=1").fetchone()
     if row is None: set_seed(seed_fn(42, None))
     warm_database_connections()
+
