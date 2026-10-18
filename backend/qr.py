@@ -80,14 +80,14 @@ def resolve(state, entity_id, *, inspect=False, user_agent=""):
 
 _QR_INSPECT_FRAGMENT = """
 SELECT jsonb_build_object(
-  'matches', jsonb_strip_nulls(jsonb_build_object(%s, doc->'matches'->%s)),
-  'players', jsonb_strip_nulls(jsonb_build_object(%s, doc->'players'->%s)),
-  'rbac_players', jsonb_strip_nulls(jsonb_build_object(%s, doc->'rbac_players'->%s)),
-  'clubs', jsonb_strip_nulls(jsonb_build_object(%s, doc->'clubs'->%s)),
-  'costream_sessions', jsonb_strip_nulls(jsonb_build_object(%s, doc->'costream_sessions'->%s)),
+  'matches', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'matches'->%s::text)),
+  'players', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'players'->%s::text)),
+  'rbac_players', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'rbac_players'->%s::text)),
+  'clubs', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'clubs'->%s::text)),
+  'costream_sessions', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'costream_sessions'->%s::text)),
   'sports', doc->'sports',
-  'qr_codes', jsonb_strip_nulls(jsonb_build_object(%s, doc->'qr_codes'->%s)),
-  'qr_telemetry', jsonb_strip_nulls(jsonb_build_object(%s, doc->'qr_telemetry'->%s))
+  'qr_codes', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'qr_codes'->%s::text)),
+  'qr_telemetry', jsonb_strip_nulls(jsonb_build_object(%s::text, doc->'qr_telemetry'->%s::text))
 ) FROM app_state WHERE id=1
 """
 
