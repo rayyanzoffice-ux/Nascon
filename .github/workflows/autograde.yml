@@ -1,0 +1,78 @@
+name: Day 2 autograde
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DAY1_SALT: demo-salt
+  DAY2_SALT: ${{ secrets.DAY2_SALT }}
+  BASE_URL: http://127.0.0.1:8080
+  SELENIUM_GRID_URL: http://127.0.0.1:4444/wd/hub
+  GUEST_WEB_URL: http://127.0.0.1:8080/web/player
+
+jobs:
+  integration-and-grading:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install Python and browser test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r qa/requirements.txt
+      - name: Start the real Compose stack
+        run: docker compose up -d --build
+      - name: Wait for API health
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent "$BASE_URL/health" | grep -q '"status":"ok"'; then exit 0; fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs --no-color --tail=100
+          exit 1
+      - name: Wait for Selenium Grid and browser nodes
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4444/status | python -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('value',{}).get('ready') else 1)"; then exit 0; fi
+            sleep 2
+          done
+          docker compose ps
+          exit 1
+      - name: Run backend tests with measured coverage
+        run: |
+          mkdir -p artifacts
+          pytest -q --cov=backend --cov-report=term-missing --cov-report=xml:artifacts/coverage.xml --cov-report=json:artifacts/coverage.json --junitxml=artifacts/pytest.xml
+      - name: Run live contract checks
+        run: pytest -q tests/test_live_contract.py --junitxml=artifacts/live-contract.xml
+      - name: Run Selenium guest flow
+        run: pytest -q tests/selenium --junitxml=artifacts/selenium.xml
+      - name: Run Appium smoke suite
+        run: pytest -q tests/appium --junitxml=artifacts/appium.xml
+      - name: Install k6
+        uses: grafana/setup-k6-action@v1
+      - name: Run k6 API load checks
+        run: k6 run tests/k6_load.js --summary-export=artifacts/k6-summary.json
+      - name: Upload measured reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: day2-grading-reports
+          path: artifacts/
+          if-no-files-found: error
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+      - name: Stop Compose stack
+        if: always()
+        run: docker compose down -v
