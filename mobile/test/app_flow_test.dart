@@ -109,7 +109,7 @@ class UiStore extends AppStore {
   Future<dynamic> clubsWithRosterCache() => cached('clubs', '/mobile/v1/clubs');
   @override
   Future<dynamic> request(String method, String path, {dynamic data}) async {
-    if (path == '/audit/v1/checkout') {
+    if (path == '/mobile/v1/checkout') {
       checkoutBody = Map<String, dynamic>.from(data);
       return {
         'order_id': data['order_id'],
@@ -207,6 +207,10 @@ void main() {
     ui.token = '';
     ui.saved.clear();
     await tester.pumpWidget(const app.NasconApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('League organizer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Player').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
