@@ -40,11 +40,47 @@ services:
       - "1935:1935"
       - "8888:8888"
       - "8889:8889"
+    volumes:
+      - ./media/mediamtx.yml:/mediamtx.yml:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9997/v3/paths/list"]
       interval: 5s
       timeout: 3s
       retries: 20
+  media-compositor:
+    build:
+      context: .
+      dockerfile: media/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://nascon:nascon_local@db:5432/nascon
+      MEDIA_INTERNAL_TOKEN: ${MEDIA_INTERNAL_TOKEN:-nascon-media-internal}
+      MEDIA_RTSP_URL: rtsp://mediamtx:8554
+      MEDIA_RTMP_URL: rtmp://mediamtx:1935
+    depends_on:
+      db:
+        condition: service_healthy
+      mediamtx:
+        condition: service_healthy
+    restart: on-failure
+  media-vod-indexer:
+    build:
+      context: .
+      dockerfile: media/Dockerfile
+    command: ["python", "-m", "media.vod_indexer"]
+    environment:
+      DATABASE_URL: postgresql://nascon:nascon_local@db:5432/nascon
+      MINIO_URL: http://minio:9000
+      MINIO_ROOT_USER: nasconlocal
+      MINIO_ROOT_PASSWORD: nasconlocal123
+      MEDIA_RECORDINGS_ROOT: /recordings
+    volumes:
+      - media_recordings:/recordings
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: on-failure
   selenium-hub:
     image: selenium/hub:4.25.0
     ports:
@@ -104,6 +140,7 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       MINIO_ENDPOINT: minio:9000
       JWT_SECRET: ${JWT_SECRET:-}
+      MEDIA_INTERNAL_TOKEN: ${MEDIA_INTERNAL_TOKEN:-nascon-media-internal}
     depends_on:
       db:
         condition: service_healthy
@@ -130,3 +167,4 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  media_recordings:

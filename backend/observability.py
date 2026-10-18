@@ -17,7 +17,7 @@ def measurements(state):
               row.get("status") in ("active", "live", "streaming")]
     bitrate = sum(max(0, row.get("bitrate_kbps", 0)) for row in active
                   if isinstance(row.get("bitrate_kbps", 0), (int, float)))
-    qr_records = state.get("qr_telemetry", {})
+    qr_records = state.get("qr_telemetry") or state.get("qr_mappings") or {}
     if isinstance(qr_records, dict):
         qr_records = qr_records.values()
     scans = sum(max(0, row.get("scan_count", 0)) for row in qr_records
