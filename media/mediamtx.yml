@@ -1,0 +1,28 @@
+logLevel: info
+authMethod: http
+authHTTPAddress: http://api:8080/internal/mediamtx/auth
+authHTTPExclude:
+  - action: api
+    path:
+api: true
+apiAddress: :9997
+rtsp: true
+rtspAddress: :8554
+rtmp: true
+rtmpAddress: :1935
+hls: true
+hlsAddress: :8888
+hlsVariant: lowLatency
+webrtc: true
+webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+pathDefaults:
+  source: publisher
+  overridePublisher: false
+  record: true
+  recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f
+  recordFormat: fmp4
+  recordSegmentDuration: 5s
+  recordDeleteAfter: 0s
+paths:
+  all_others:
