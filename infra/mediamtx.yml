@@ -1,0 +1,12 @@
+api: yes
+apiAddress: 0.0.0.0:9997
+metrics: yes
+metricsAddress: 0.0.0.0:9998
+rtmp: yes
+rtmpAddress: 0.0.0.0:1935
+hls: yes
+hlsAddress: 0.0.0.0:8888
+webrtc: yes
+webrtcAddress: 0.0.0.0:8889
+paths:
+  all_others:
