@@ -32,6 +32,56 @@ services:
       MINIO_ROOT_PASSWORD: nasconlocal123
     volumes:
       - minio_data:/data
+  mediamtx:
+    image: bluenviron/mediamtx:1.9.3
+    ports:
+      - "1935:1935"
+      - "8888:8888"
+      - "8889:8889"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9997/v3/paths/list"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  selenium-hub:
+    image: selenium/hub:4.25.0
+    ports:
+      - "4444:4444"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4444/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  selenium-chrome:
+    image: selenium/node-chrome:4.25.0
+    shm_size: 2gb
+    environment:
+      SE_EVENT_BUS_HOST: selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT: 4442
+      SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+  selenium-firefox:
+    image: selenium/node-firefox:4.25.0
+    shm_size: 2gb
+    environment:
+      SE_EVENT_BUS_HOST: selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT: 4442
+      SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+  selenium-edge:
+    image: selenium/node-edge:4.25.0
+    shm_size: 2gb
+    environment:
+      SE_EVENT_BUS_HOST: selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT: 4442
+      SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
   api:
     build: .
     ports:
