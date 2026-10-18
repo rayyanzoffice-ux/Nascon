@@ -18,6 +18,16 @@ app.include_router(roster_router)
 app.include_router(offline_router)
 from .mobile_api import router as mobile_router
 app.include_router(mobile_router)
+from .moderation import router as moderation_router
+from .notifications import router as notification_router
+from .observability import router as observability_router
+from .privacy import router as privacy_router, revocation_middleware
+
+app.include_router(moderation_router)
+app.include_router(notification_router)
+app.include_router(observability_router)
+app.include_router(privacy_router)
+app.middleware("http")(revocation_middleware)
 from .qr import router as qr_router
 from .guest import router as guest_router
 app.include_router(qr_router)

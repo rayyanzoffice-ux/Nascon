@@ -10,6 +10,7 @@ from backend.app import rate, validate_sport
 from backend.core import APIError
 from backend.main import app
 from backend import rbac
+from backend import privacy
 from backend.seed import baseline
 
 
@@ -39,6 +40,7 @@ PROBES = (
 @pytest.mark.parametrize("role", ROLES)
 def test_full_role_target_matrix_over_http(monkeypatch, method, path, allowed, role):
     monkeypatch.setattr(rbac, "read", lambda fn: fn(baseline()))
+    monkeypatch.setattr(privacy, "read", lambda fn: fn(baseline()))
     token = rbac.tokens()[role]
     response = TestClient(app).request(method, path, headers={"Authorization": f"Bearer {token}"}, json={} if method != "GET" else None)
     assert response.status_code == (200 if role in allowed else 403)
@@ -48,7 +50,8 @@ def test_full_role_target_matrix_over_http(monkeypatch, method, path, allowed, r
         assert response.json()["error"]["code"] == "FORBIDDEN"
 
 
-def test_reject_missing_tampered_none_and_expired_tokens():
+def test_reject_missing_tampered_none_and_expired_tokens(monkeypatch):
+    monkeypatch.setattr(privacy, "read", lambda fn: fn(baseline()))
     client = TestClient(app)
     valid = rbac.tokens()["super_admin"]
     header, payload, signature = valid.split(".")
