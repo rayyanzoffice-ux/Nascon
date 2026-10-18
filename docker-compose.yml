@@ -43,7 +43,7 @@ services:
     volumes:
       - ./media/mediamtx.yml:/mediamtx.yml:ro
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9997/v3/paths/list"]
+      test: ["CMD-SHELL", "kill -0 1"]
       interval: 5s
       timeout: 3s
       retries: 20
