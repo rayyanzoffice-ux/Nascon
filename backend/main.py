@@ -32,3 +32,9 @@ from .qr import router as qr_router
 from .guest import router as guest_router
 app.include_router(qr_router)
 app.include_router(guest_router)
+from .streaming import router as streaming_router
+from .costream import router as costream_router
+from .athletes import router as athletes_router
+app.include_router(streaming_router)
+app.include_router(costream_router)
+app.include_router(athletes_router)
