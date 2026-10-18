@@ -1,0 +1,55 @@
+name: Android 10 install and launch smoke
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/android-smoke.yml'
+      - 'mobile/release/app-release.apk'
+      - 'mobile/android/**'
+  workflow_dispatch:
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DAY1_SALT: demo-salt
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start backend for emulator
+        run: |
+          docker compose up -d --build
+          for attempt in $(seq 1 60); do
+            if [ "$(curl --silent --max-time 3 http://127.0.0.1:8080/health 2>/dev/null)" = '{"status":"ok"}' ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          exit 1
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and relaunch APK on Android 10
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            set -eu
+            adb install -r mobile/release/app-release.apk
+            adb shell am start -W -n com.nascon26.nascon_mobile/.MainActivity
+            sleep 8
+            adb shell pidof com.nascon26.nascon_mobile
+            adb shell am force-stop com.nascon26.nascon_mobile
+            adb shell am start -W -n com.nascon26.nascon_mobile/.MainActivity
+            sleep 5
+            adb shell pidof com.nascon26.nascon_mobile
+      - name: Show backend logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=100
+      - name: Stop backend
+        if: always()
+        run: docker compose down
