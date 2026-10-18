@@ -49,6 +49,8 @@ services:
     image: selenium/hub:4.25.0
     ports:
       - "4444:4444"
+      - "4442:4442"
+      - "4443:4443"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4444/status"]
       interval: 5s
@@ -61,6 +63,8 @@ services:
       SE_EVENT_BUS_HOST: selenium-hub
       SE_EVENT_BUS_PUBLISH_PORT: 4442
       SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+      SE_NODE_MAX_SESSIONS: 1
+      SE_START_VNC: "false"
     depends_on:
       selenium-hub:
         condition: service_healthy
@@ -71,16 +75,20 @@ services:
       SE_EVENT_BUS_HOST: selenium-hub
       SE_EVENT_BUS_PUBLISH_PORT: 4442
       SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+      SE_NODE_MAX_SESSIONS: 1
+      SE_START_VNC: "false"
     depends_on:
       selenium-hub:
         condition: service_healthy
-  selenium-edge:
-    image: selenium/node-edge:4.25.0
+  selenium-chrome-2:
+    image: selenium/node-chrome:4.25.0
     shm_size: 2gb
     environment:
       SE_EVENT_BUS_HOST: selenium-hub
       SE_EVENT_BUS_PUBLISH_PORT: 4442
       SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+      SE_NODE_MAX_SESSIONS: 1
+      SE_START_VNC: "false"
     depends_on:
       selenium-hub:
         condition: service_healthy

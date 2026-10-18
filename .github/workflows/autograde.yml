@@ -16,7 +16,7 @@ env:
   NASCON_BASE_URL: http://127.0.0.1:8080
   QA_TEST_SALT: demo-salt
   SELENIUM_GRID_URL: http://127.0.0.1:4444/wd/hub
-  GUEST_WEB_URL: http://127.0.0.1:8080/web/matches/match-m1/live
+  GUEST_WEB_URL: http://api:8080/q/m1-live
   DATABASE_URL: postgresql://nascon:nascon_local@127.0.0.1:5432/nascon
 
 jobs:
