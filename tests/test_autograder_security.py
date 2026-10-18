@@ -52,7 +52,7 @@ def test_reject_missing_tampered_none_and_expired_tokens():
     client = TestClient(app)
     valid = rbac.tokens()["super_admin"]
     header, payload, signature = valid.split(".")
-    tampered = ".".join((header, payload, signature[:-1] + ("A" if signature[-1] != "A" else "B")))
+    tampered = ".".join((header, payload, ("A" if signature[0] != "A" else "B") + signature[1:]))
     none = jwt.encode({"role": "super_admin", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}, key="", algorithm="none")
     expired = jwt.encode({"role": "super_admin", "exp": datetime.now(timezone.utc) - timedelta(seconds=1)}, rbac.SECRET, algorithm="HS256")
     for token in (None, tampered, none, expired):
