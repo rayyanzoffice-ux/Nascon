@@ -8,14 +8,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 
 DEFAULT_SELECTORS = (
-    "guest-player",
-    "guest-stream",
-    "guest-score",
-    "guest-fixture",
-    "guest-leaderboard",
+    "guest-player-shell",
+    "guest-player-video",
+    "guest-scoreboard",
+    "guest-score-home",
+    "guest-score-away",
+    "guest-cart-items",
     "guest-cart",
     "guest-chat",
-    "guest-login",
     "guest-auth-modal",
 )
 
@@ -54,8 +54,7 @@ def test_guest_player_exposes_required_controls(browser):
 
 def test_guest_auth_modal_is_progressive(browser):
     browser.get(os.getenv("GUEST_WEB_URL", "http://127.0.0.1:8080/web/player"))
-    login = browser.find_element(By.CSS_SELECTOR, '[data-testid="guest-login"]')
-    login.click()
+    browser.find_element(By.ID, "chat-open").click()
     modal = WebDriverWait(browser, 5).until(
         lambda driver: driver.find_element(By.CSS_SELECTOR, '[data-testid="guest-auth-modal"]')
     )
