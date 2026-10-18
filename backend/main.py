@@ -38,3 +38,5 @@ from .athletes import router as athletes_router
 app.include_router(streaming_router)
 app.include_router(costream_router)
 app.include_router(athletes_router)
+from .web import router as web_router
+app.include_router(web_router)
