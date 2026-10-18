@@ -165,6 +165,16 @@ def read(fn):
         return fn(row[0])
     return _database_call(operation)
 
+
+def read_fragment(sql, params, fn):
+    """Run a read against a small JSONB projection instead of the whole state."""
+    def operation(c):
+        row = c.execute(sql, params).fetchone()
+        if row is None or row[0] is None:
+            raise RuntimeError("Database not seeded")
+        return fn(row[0])
+    return _database_call(operation)
+
 def mutate(fn):
     def operation(c):
         with c.transaction():

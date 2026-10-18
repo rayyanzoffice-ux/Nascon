@@ -10,7 +10,7 @@ import qrcode
 from qrcode.image.svg import SvgPathImage
 from reportlab.pdfgen import canvas
 
-from .core import fail, mutate, read
+from .core import fail, mutate, read, read_fragment
 from .day2_signing import sign_day2
 from .scoring import projection
 
@@ -78,12 +78,36 @@ def resolve(state, entity_id, *, inspect=False, user_agent=""):
             "signature": sign_day2(entity_id, payload)}
 
 
+_QR_INSPECT_FRAGMENT = """
+SELECT jsonb_build_object(
+  'matches', jsonb_strip_nulls(jsonb_build_object(%s, doc->'matches'->%s)),
+  'players', jsonb_strip_nulls(jsonb_build_object(%s, doc->'players'->%s)),
+  'rbac_players', jsonb_strip_nulls(jsonb_build_object(%s, doc->'rbac_players'->%s)),
+  'clubs', jsonb_strip_nulls(jsonb_build_object(%s, doc->'clubs'->%s)),
+  'costream_sessions', jsonb_strip_nulls(jsonb_build_object(%s, doc->'costream_sessions'->%s)),
+  'sports', doc->'sports',
+  'qr_codes', jsonb_strip_nulls(jsonb_build_object(%s, doc->'qr_codes'->%s)),
+  'qr_telemetry', jsonb_strip_nulls(jsonb_build_object(%s, doc->'qr_telemetry'->%s))
+) FROM app_state WHERE id=1
+"""
+
+
+def inspect_metadata(entity_id):
+    params = (entity_id, entity_id) * 7
+    state = read_fragment(_QR_INSPECT_FRAGMENT, params, lambda value: value)
+    # An unseen entity needs a durable short-code allocation; existing codes,
+    # including all official fixtures, remain entirely read-only.
+    if entity_id not in state.get("qr_codes", {}):
+        return mutate(lambda full_state: resolve(full_state, entity_id, inspect=True))
+    return resolve(state, entity_id, inspect=True)
+
+
 @router.get("/audit/v1/qr/{entity_id}")
 def qr_metadata(req: Request, entity_id: str, inspect: bool = False):
     # Inspect is the signed, read-only audit view.  It must not contend with
     # real scans, which still record telemetry atomically below.
     if inspect:
-        return read(lambda state: resolve(state, entity_id, inspect=True))
+        return inspect_metadata(entity_id)
     return mutate(lambda state: resolve(state, entity_id, inspect=False, user_agent=req.headers.get("user-agent", "")))
 
 
