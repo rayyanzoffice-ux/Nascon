@@ -42,11 +42,6 @@ services:
       - "8889:8889"
     volumes:
       - ./media/mediamtx.yml:/mediamtx.yml:ro
-    healthcheck:
-      test: ["CMD-SHELL", "kill -0 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
   media-compositor:
     build:
       context: .
@@ -60,7 +55,7 @@ services:
       db:
         condition: service_healthy
       mediamtx:
-        condition: service_healthy
+        condition: service_started
     restart: on-failure
   media-vod-indexer:
     build:
